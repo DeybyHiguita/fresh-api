@@ -1,0 +1,6 @@
+@Fresh.Api_HostAddress = http://localhost:5058
+
+GET {{Fresh.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
