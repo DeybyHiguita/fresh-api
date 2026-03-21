@@ -1,0 +1,15 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fresh-api
+    ports:
+      - "5058:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=ep-bitter-wildflower-amdy6uti-pooler.c-5.us-east-1.aws.neon.tech;Database=dbfresh;Username=neondb_owner;Password=npg_qYzDMSV8OF6U;SSL Mode=VerifyFull
+      - Jwt__Key=FreshSuperSecretKey2026!MinimoTreintaDosCaracteres
+      - Jwt__Issuer=Fresh.Api
+      - Jwt__Audience=Fresh.App
+    restart: unless-stopped
