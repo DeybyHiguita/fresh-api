@@ -95,8 +95,8 @@ builder.Services.AddCors(options =>
                   "https://fresh-app-production.up.railway.app"
               )
               .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowAnyMethod();
+        // .AllowCredentials() eliminado para evitar error CORS 500
     });
 });
 
