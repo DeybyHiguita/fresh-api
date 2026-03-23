@@ -61,15 +61,51 @@ public class CustomerCreditService : ICustomerCreditService
         if (request.AmountPaid > credit.CurrentBalance)
             throw new InvalidOperationException($"El cliente solo debe ${credit.CurrentBalance}.");
 
+        decimal balanceBefore = credit.CurrentBalance;
         credit.CurrentBalance -= request.AmountPaid;
-
-        if (credit.CurrentBalance <= 0) credit.Status = "Al día";
-
+        credit.Status = credit.CurrentBalance <= 0 ? "Al día"
+                       : credit.CurrentBalance < credit.CreditLimit ? "Con deuda"
+                       : "Límite alcanzado";
         credit.UpdatedAt = DateTimeOffset.UtcNow;
         _context.CustomerCredits.Update(credit);
-        await _context.SaveChangesAsync();
 
+        _context.CreditTransactions.Add(new CreditTransaction
+        {
+            CustomerCreditId = credit.Id,
+            OrderId = null,
+            Type = "Abono",
+            Amount = request.AmountPaid,
+            BalanceBefore = balanceBefore,
+            BalanceAfter = credit.CurrentBalance,
+            Description = $"Pago registrado manualmente",
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
         return await GetByCustomerIdAsync(credit.CustomerId);
+    }
+
+    public async Task<IEnumerable<CreditTransactionResponse>> GetTransactionsAsync(int customerId)
+    {
+        var credit = await _context.CustomerCredits.FirstOrDefaultAsync(c => c.CustomerId == customerId);
+        if (credit == null) return [];
+
+        return await _context.CreditTransactions
+            .Where(t => t.CustomerCreditId == credit.Id)
+            .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new CreditTransactionResponse
+            {
+                Id = t.Id,
+                CustomerCreditId = t.CustomerCreditId,
+                OrderId = t.OrderId,
+                Type = t.Type,
+                Amount = t.Amount,
+                BalanceBefore = t.BalanceBefore,
+                BalanceAfter = t.BalanceAfter,
+                Description = t.Description,
+                CreatedAt = t.CreatedAt
+            })
+            .ToListAsync();
     }
 
     public async Task<CustomerCreditResponse?> RegisterPurchaseAsync(int customerId, decimal purchaseAmount)

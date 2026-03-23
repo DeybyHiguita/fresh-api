@@ -59,6 +59,7 @@ public class OrderService : IOrderService
 
         // Validar cliente registrado y crédito si aplica
         CustomerCredit? customerCredit = null;
+        decimal creditBalanceBefore = 0m;
         if (request.CustomerId.HasValue)
         {
             var customer = await _context.Customers
@@ -83,7 +84,9 @@ public class OrderService : IOrderService
                 decimal available = customerCredit.CreditLimit - customerCredit.CurrentBalance;
                 if (available < total)
                     throw new InvalidOperationException(
-                        $"Crédito insuficiente. Disponible: ${available:F2}, Total de la orden: ${total:F2}.");
+                        $"Cupo insuficiente. Disponible: ${available:F2}, Total de la orden: ${total:F2}.");
+
+                creditBalanceBefore = customerCredit.CurrentBalance;
             }
         }
         else if (request.PaymentMethod == "Crédito")
@@ -102,7 +105,7 @@ public class OrderService : IOrderService
             Total = total,
             OrderType = request.OrderType,
             PaymentMethod = request.PaymentMethod,
-            Status = "Pendiente", // Por defecto
+            Status = "Pendiente",
             Notes = request.Notes,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -118,39 +121,47 @@ public class OrderService : IOrderService
             }).ToList()
         };
 
+        // Descontar cupo INMEDIATAMENTE al registrar la orden
+        if (customerCredit != null)
+        {
+            customerCredit.CurrentBalance += total;
+            customerCredit.Status = customerCredit.CurrentBalance >= customerCredit.CreditLimit
+                ? "Límite alcanzado"
+                : customerCredit.CurrentBalance > 0 ? "Con deuda" : "Al día";
+            customerCredit.UpdatedAt = DateTimeOffset.UtcNow;
+            _context.CustomerCredits.Update(customerCredit);
+        }
+
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
-        // Recargar la orden para obtener nombres de Usuario y MenuItems y mapear correctamente
+        // Registrar transacción de crédito con el id de la orden ya generado
+        if (customerCredit != null)
+        {
+            _context.CreditTransactions.Add(new CreditTransaction
+            {
+                CustomerCreditId = customerCredit.Id,
+                OrderId = order.Id,
+                Type = "Cargo",
+                Amount = total,
+                BalanceBefore = creditBalanceBefore,
+                BalanceAfter = customerCredit.CurrentBalance,
+                Description = $"Compra - Orden #{order.Id}",
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await _context.SaveChangesAsync();
+        }
+
         return await GetByIdAsync(order.Id) ?? throw new Exception("Error al recuperar la orden creada.");
     }
 
     public async Task<OrderResponse?> UpdateStatusAsync(int id, string newStatus)
     {
-        var order = await _context.Orders
-            .Include(o => o.Customer)
-                .ThenInclude(c => c!.CreditInfo)
-            .FirstOrDefaultAsync(o => o.Id == id);
-
+        var order = await _context.Orders.FindAsync(id);
         if (order == null) throw new KeyNotFoundException($"Orden {id} no encontrada.");
 
         order.Status = newStatus;
         order.UpdatedAt = DateTimeOffset.UtcNow;
-
-        // Descontar del cupo cuando la orden queda COMPLETADA y el pago es a crédito
-        if (newStatus == "Completada" &&
-            order.PaymentMethod == "Crédito" &&
-            order.CustomerId.HasValue &&
-            order.Customer?.CreditInfo != null)
-        {
-            var credit = order.Customer.CreditInfo;
-            credit.CurrentBalance += order.Total;
-            credit.Status = credit.CurrentBalance >= credit.CreditLimit
-                ? "Límite alcanzado"
-                : "Al día";
-            credit.UpdatedAt = DateTimeOffset.UtcNow;
-            _context.CustomerCredits.Update(credit);
-        }
 
         _context.Orders.Update(order);
         await _context.SaveChangesAsync();
