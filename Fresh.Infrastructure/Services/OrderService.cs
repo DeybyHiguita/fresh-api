@@ -136,21 +136,21 @@ public class OrderService : IOrderService
         // Validar transiciones permitidas
         var currentStatus = order.Status;
 
-        if (currentStatus == "Cancelada")
+        if (currentStatus == "Cancelado")
             throw new InvalidOperationException("La orden ya está cancelada y no puede cambiar de estado.");
 
-        if (currentStatus == "Entregada")
+        if (currentStatus == "Entregado")
             throw new InvalidOperationException("La orden ya fue entregada y no puede cambiar de estado.");
 
-        if (currentStatus == "Pendiente" && newStatus != "Cancelada" && newStatus != "Entregada")
-            throw new InvalidOperationException("Una orden pendiente solo puede pasar a 'Entregada' o 'Cancelada'.");
+        if (currentStatus == "Pendiente" && newStatus != "Cancelado" && newStatus != "Entregado")
+            throw new InvalidOperationException("Una orden pendiente solo puede pasar a 'Entregado' o 'Cancelado'.");
 
         order.Status = newStatus;
         order.UpdatedAt = DateTimeOffset.UtcNow;
         _context.Orders.Update(order);
 
         // Descontar crédito cuando la orden es entregada
-        if (newStatus == "Entregada" && order.CustomerId.HasValue && order.PaymentMethod == "Crédito")
+        if (newStatus == "Entregado" && order.CustomerId.HasValue && order.PaymentMethod == "Crédito")
         {
             var customerCredit = order.Customer?.CreditInfo;
             if (customerCredit != null)
