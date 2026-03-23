@@ -28,6 +28,8 @@ public class FreshDbContext : DbContext
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<CashPeriod> CashPeriods => Set<CashPeriod>();
     public DbSet<CashRegister> CashRegisters => Set<CashRegister>();
+    public DbSet<EquipmentCategory> EquipmentCategories => Set<EquipmentCategory>();
+    public DbSet<Equipment> Equipments => Set<Equipment>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Invoice>(entity =>
@@ -451,6 +453,45 @@ modelBuilder.Entity<Expense>(entity =>
             entity.HasOne(e => e.Period).WithMany(p => p.CashRegisters).HasForeignKey(e => e.PeriodId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.OpenedBy).WithMany().HasForeignKey(e => e.OpenedById).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.ClosedBy).WithMany().HasForeignKey(e => e.ClosedById).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EquipmentCategory>(entity =>
+        {
+            entity.ToTable("equipment_categories");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.Name).HasDatabaseName("ix_equipment_categories_name");
+        });
+
+        modelBuilder.Entity<Equipment>(entity =>
+        {
+            entity.ToTable("equipments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.CategoryId).HasColumnName("category_id").IsRequired();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.Brand).HasColumnName("brand").HasMaxLength(100);
+            entity.Property(e => e.Model).HasColumnName("model").HasMaxLength(100);
+            entity.Property(e => e.SerialNumber).HasColumnName("serial_number").HasMaxLength(100);
+            entity.Property(e => e.PurchaseDate).HasColumnName("purchase_date");
+            entity.Property(e => e.PurchasePrice).HasColumnName("purchase_price").HasPrecision(10, 2).HasDefaultValue(0m);
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("Activo");
+            entity.Property(e => e.Location).HasColumnName("location").HasMaxLength(100);
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.CategoryId).HasDatabaseName("ix_equipments_category_id");
+            entity.HasIndex(e => e.Status).HasDatabaseName("ix_equipments_status");
+            entity.HasIndex(e => e.SerialNumber).HasDatabaseName("ix_equipments_serial_number");
+            entity.HasOne(e => e.Category)
+                  .WithMany(c => c.Equipments)
+                  .HasForeignKey(e => e.CategoryId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
