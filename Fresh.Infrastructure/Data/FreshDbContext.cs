@@ -26,6 +26,8 @@ public class FreshDbContext : DbContext
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<ExpenseType> ExpenseTypes => Set<ExpenseType>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<CashPeriod> CashPeriods => Set<CashPeriod>();
+    public DbSet<CashRegister> CashRegisters => Set<CashRegister>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Invoice>(entity =>
@@ -407,6 +409,48 @@ modelBuilder.Entity<Expense>(entity =>
                   .WithMany()
                   .HasForeignKey(e => e.MenuItemId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CashPeriod>(entity =>
+        {
+            entity.ToTable("cash_periods");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.StartDate).HasColumnName("start_date").IsRequired();
+            entity.Property(e => e.EndDate).HasColumnName("end_date").IsRequired();
+            entity.Property(e => e.IsClosed).HasColumnName("is_closed").HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => new { e.StartDate, e.EndDate }).HasDatabaseName("ix_cash_periods_dates");
+        });
+
+        modelBuilder.Entity<CashRegister>(entity =>
+        {
+            entity.ToTable("cash_registers");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.PeriodId).HasColumnName("period_id").IsRequired();
+            entity.Property(e => e.OpenedById).HasColumnName("opened_by").IsRequired();
+            entity.Property(e => e.ClosedById).HasColumnName("closed_by");
+            entity.Property(e => e.OpeningTime).HasColumnName("opening_time").IsRequired();
+            entity.Property(e => e.ClosingTime).HasColumnName("closing_time");
+            entity.Property(e => e.OpeningBalance).HasColumnName("opening_balance").HasPrecision(10, 2).IsRequired();
+            entity.Property(e => e.ReportedCash).HasColumnName("reported_cash").HasPrecision(10, 2);
+            entity.Property(e => e.ReportedTransfer).HasColumnName("reported_transfer").HasPrecision(10, 2);
+            entity.Property(e => e.ReportedCard).HasColumnName("reported_card").HasPrecision(10, 2);
+            entity.Property(e => e.SystemCash).HasColumnName("system_cash").HasPrecision(10, 2);
+            entity.Property(e => e.SystemTransfer).HasColumnName("system_transfer").HasPrecision(10, 2);
+            entity.Property(e => e.SystemCard).HasColumnName("system_card").HasPrecision(10, 2);
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Abierta");
+            entity.Property(e => e.Observations).HasColumnName("observations");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.PeriodId).HasDatabaseName("ix_cash_registers_period_id");
+            entity.HasIndex(e => e.Status).HasDatabaseName("ix_cash_registers_status");
+            entity.HasOne(e => e.Period).WithMany(p => p.CashRegisters).HasForeignKey(e => e.PeriodId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.OpenedBy).WithMany().HasForeignKey(e => e.OpenedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.ClosedBy).WithMany().HasForeignKey(e => e.ClosedById).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

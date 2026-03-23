@@ -27,6 +27,8 @@ builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IExpenseTypeService, ExpenseTypeService>();
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
+builder.Services.AddScoped<ICashPeriodService, CashPeriodService>();
+builder.Services.AddScoped<ICashRegisterService, CashRegisterService>();
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
