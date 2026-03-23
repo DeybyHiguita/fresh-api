@@ -128,7 +128,7 @@ public class OrderService : IOrderService
     {
         var order = await _context.Orders
             .Include(o => o.Customer)
-                .ThenInclude(c => c != null ? c.CreditInfo : null)
+                .ThenInclude(c => c!.CreditInfo)
             .FirstOrDefaultAsync(o => o.Id == id);
 
         if (order == null) throw new KeyNotFoundException($"Orden {id} no encontrada.");
