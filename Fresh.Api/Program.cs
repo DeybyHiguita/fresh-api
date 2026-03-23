@@ -128,10 +128,10 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS ix_user_permissions_user_id ON user_permissions (user_id);
         ");
 
-        // Inicializar permisos completos para admins que no los tengan
+        // Inicializar permisos completos para admins (INSERT o UPDATE a true si ya existen)
         await db.Database.ExecuteSqlRawAsync(@"
-            INSERT INTO user_permissions (user_id, page, can_access)
-            SELECT u.id, p.page, true
+            INSERT INTO user_permissions (user_id, page, can_access, updated_at)
+            SELECT u.id, p.page, true, NOW()
             FROM users u
             CROSS JOIN (VALUES
                 ('dashboard'), ('recipes'), ('ingredients'), ('inventory'),
@@ -139,7 +139,8 @@ using (var scope = app.Services.CreateScope())
                 ('customers'), ('expenses'), ('equipments')
             ) AS p(page)
             WHERE u.role = 'admin'
-            ON CONFLICT (user_id, page) DO NOTHING;
+            ON CONFLICT (user_id, page) DO UPDATE
+                SET can_access = true, updated_at = NOW();
         ");
     }
     catch (Exception ex)
