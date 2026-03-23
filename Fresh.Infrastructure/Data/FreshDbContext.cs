@@ -404,6 +404,7 @@ modelBuilder.Entity<Expense>(entity =>
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
 
             entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.CustomerId).HasColumnName("customer_id");
             entity.Property(e => e.CustomerName).HasColumnName("customer_name").HasMaxLength(150);
             entity.Property(e => e.CustomerPhone).HasColumnName("customer_phone").HasMaxLength(20);
 
@@ -420,6 +421,7 @@ modelBuilder.Entity<Expense>(entity =>
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
             entity.HasIndex(e => e.UserId).HasDatabaseName("ix_orders_user_id");
+            entity.HasIndex(e => e.CustomerId).HasDatabaseName("ix_orders_customer_id");
             entity.HasIndex(e => e.CreatedAt).HasDatabaseName("ix_orders_created_at");
 
             // Relaci�n
@@ -427,6 +429,12 @@ modelBuilder.Entity<Expense>(entity =>
                   .WithMany()
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Customer)
+                  .WithMany()
+                  .HasForeignKey(e => e.CustomerId)
+                  .OnDelete(DeleteBehavior.SetNull)
+                  .IsRequired(false);
         });
 
         modelBuilder.Entity<OrderItem>(entity =>

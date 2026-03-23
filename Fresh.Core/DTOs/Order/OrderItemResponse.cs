@@ -16,6 +16,7 @@ public class OrderResponse
     public int Id { get; set; }
     public int UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
+    public int? CustomerId { get; set; }
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
     public decimal Subtotal { get; set; }
