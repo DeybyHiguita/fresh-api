@@ -30,6 +30,8 @@ public class FreshDbContext : DbContext
     public DbSet<CashRegister> CashRegisters => Set<CashRegister>();
     public DbSet<EquipmentCategory> EquipmentCategories => Set<EquipmentCategory>();
     public DbSet<Equipment> Equipments => Set<Equipment>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerCredit> CustomerCredits => Set<CustomerCredit>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Invoice>(entity =>
@@ -68,10 +70,56 @@ public class FreshDbContext : DbContext
           .HasForeignKey<Invoice>(e => e.OrderId)
           .OnDelete(DeleteBehavior.Restrict);
 });
-        
 
 
-modelBuilder.Entity<ExpenseType>(entity =>
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.ToTable("customers");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+
+            entity.Property(e => e.FirstName).HasColumnName("first_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.LastName).HasColumnName("last_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.DocumentNumber).HasColumnName("document_number").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Phone).HasColumnName("phone").HasMaxLength(20);
+            entity.Property(e => e.Address).HasColumnName("address").HasMaxLength(255);
+
+            entity.Property(e => e.ReferenceName).HasColumnName("reference_name").HasMaxLength(150);
+            entity.Property(e => e.ReferencePhone).HasColumnName("reference_phone").HasMaxLength(20);
+
+            entity.Property(e => e.CreatedById).HasColumnName("created_by").IsRequired();
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.DocumentNumber).HasDatabaseName("ix_customers_document").IsUnique();
+            entity.HasIndex(e => new { e.FirstName, e.LastName }).HasDatabaseName("ix_customers_name");
+
+            entity.HasOne(e => e.CreatedBy).WithMany().HasForeignKey(e => e.CreatedById).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CustomerCredit>(entity =>
+        {
+            entity.ToTable("customer_credits");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+
+            entity.Property(e => e.CustomerId).HasColumnName("customer_id").IsRequired();
+
+            entity.Property(e => e.CreditLimit).HasColumnName("credit_limit").HasPrecision(10, 2).HasDefaultValue(0m);
+            entity.Property(e => e.PaymentFrequency).HasColumnName("payment_frequency").HasMaxLength(50).HasDefaultValue("Mensual");
+            entity.Property(e => e.CurrentBalance).HasColumnName("current_balance").HasPrecision(10, 2).HasDefaultValue(0m);
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("Al día");
+
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.CustomerId).HasDatabaseName("ix_customer_credits_customer_id").IsUnique();
+
+            entity.HasOne(e => e.Customer).WithOne(c => c.CreditInfo).HasForeignKey<CustomerCredit>(e => e.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ExpenseType>(entity =>
 {
     entity.ToTable("expense_types");
     entity.HasKey(e => e.Id);
