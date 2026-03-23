@@ -33,6 +33,7 @@ public class FreshDbContext : DbContext
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerCredit> CustomerCredits => Set<CustomerCredit>();
     public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
+    public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Invoice>(entity =>
@@ -580,6 +581,23 @@ public class FreshDbContext : DbContext
                   .WithMany(c => c.Equipments)
                   .HasForeignKey(e => e.CategoryId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UserPermission>(entity =>
+        {
+            entity.ToTable("user_permissions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.Page).HasColumnName("page").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.CanAccess).HasColumnName("can_access").HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("ix_user_permissions_user_id");
+            entity.HasIndex(e => new { e.UserId, e.Page }).IsUnique().HasDatabaseName("ux_user_permissions_user_page");
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
