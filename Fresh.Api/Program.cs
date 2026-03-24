@@ -1,3 +1,4 @@
+using Fresh.Api.Hubs;
 using Fresh.Api.Middleware;
 using Fresh.Core.Interfaces;
 using Fresh.Infrastructure.Data;
@@ -7,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Database
@@ -36,8 +36,13 @@ builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();
 builder.Services.AddScoped<IAppPageService, AppPageService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IUserSessionService, UserSessionService>();
 
 // JWT Authentication
+builder.Services.AddSignalR();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -51,6 +56,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+        };
+        // Allow JWT from query string for SignalR connections
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -179,6 +198,43 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Startup patch: user_sessions + user_actions
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FreshDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("StartupDbPatch");
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id                    SERIAL PRIMARY KEY,
+                user_id               INTEGER       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                connection_id         VARCHAR(200)  NULL,
+                connected_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+                disconnected_at       TIMESTAMPTZ   NULL,
+                total_idle_seconds    INTEGER       NOT NULL DEFAULT 0,
+                last_known_location   VARCHAR(200)  NULL,
+                is_online             BOOLEAN       NOT NULL DEFAULT TRUE
+            );
+            CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id  ON user_sessions (user_id);
+            CREATE INDEX IF NOT EXISTS ix_user_sessions_is_online ON user_sessions (is_online);
+
+            CREATE TABLE IF NOT EXISTS user_actions (
+                id           SERIAL PRIMARY KEY,
+                session_id   INTEGER       NOT NULL REFERENCES user_sessions(id) ON DELETE CASCADE,
+                action_type  VARCHAR(50)   NOT NULL,
+                description  VARCHAR(500)  NOT NULL,
+                created_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS ix_user_actions_session_id ON user_actions (session_id);
+        ");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "No se pudo aplicar patch de startup para user_sessions/user_actions");
+    }
+}
+
 // Swagger habilitado siempre (app interna)
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -188,5 +244,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<ApiLoggingMiddleware>();
 app.MapControllers();
+app.MapHub<PresenceHub>("/hubs/presence");
 
 app.Run();
