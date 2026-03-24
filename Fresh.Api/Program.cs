@@ -128,6 +128,12 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS ix_user_permissions_user_id ON user_permissions (user_id);
         ");
 
+        // Garantizar que admin@admin.com sea siempre admin activo
+        await db.Database.ExecuteSqlRawAsync(@"
+            UPDATE users SET role='admin', is_active=true, updated_at=NOW()
+            WHERE email='admin@admin.com';
+        ");
+
         // Inicializar permisos completos para admins (INSERT o UPDATE a true si ya existen)
         await db.Database.ExecuteSqlRawAsync(@"
             INSERT INTO user_permissions (user_id, page, can_access, updated_at)
