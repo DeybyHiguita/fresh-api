@@ -34,6 +34,15 @@ public class LogService : ILogService
         if (!string.IsNullOrWhiteSpace(filter.TransactionId))
             query = query.Where(l => l.TransactionId == filter.TransactionId);
 
+        if (!string.IsNullOrWhiteSpace(filter.HttpMethod))
+        {
+            var prefix = filter.HttpMethod.ToUpper() + " ";
+            query = query.Where(l => l.Operation != null && l.Operation.StartsWith(prefix));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Operation))
+            query = query.Where(l => l.Operation != null && l.Operation.Contains(filter.Operation));
+
         if (filter.From.HasValue)
             query = query.Where(l => l.LogDate >= filter.From.Value);
 
