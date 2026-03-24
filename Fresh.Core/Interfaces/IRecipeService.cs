@@ -10,4 +10,6 @@ public interface IRecipeService
     Task<RecipeResponse?> UpdateAsync(int id, RecipeRequest request);
     Task<bool> DeleteAsync(int id);
     Task<List<RecipeResponse>> GetByNameAsync(string name); // Buscar recetas por nombre
+    Task<RecipeDetailResponse> AddDetailAsync(int recipeId, RecipeDetailRequest request);
+    Task<bool> RemoveDetailAsync(int detailId);
 }

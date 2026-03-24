@@ -133,4 +133,62 @@ public class RecipeService : IRecipeService
             }).ToList()
         };
     }
+
+    public async Task<RecipeDetailResponse> AddDetailAsync(int recipeId, RecipeDetailRequest request)
+    {
+        // 1. Validar que la receta exista
+        var recipe = await _context.Recipes.AnyAsync(r => r.Id == recipeId);
+        if (!recipe) throw new KeyNotFoundException("Receta no encontrada.");
+
+        // 2. Validar integridad: o es ingrediente o es producto, pero no ambos ni ninguno
+        if (request.IngredientId.HasValue && request.ProductId.HasValue)
+            throw new ArgumentException("Un detalle no puede ser ingrediente y producto al mismo tiempo.");
+
+        if (!request.IngredientId.HasValue && !request.ProductId.HasValue)
+            throw new ArgumentException("Debe especificar un ingrediente o un producto.");
+
+        // 3. Crear entidad
+        var detail = new RecipeDetail
+        {
+            RecipeId = recipeId,
+            IngredientId = request.IngredientId,
+            ProductId = request.ProductId,
+            Quantity = request.Quantity,
+            Unit = request.Unit,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.RecipeDetails.Add(detail);
+        await _context.SaveChangesAsync();
+
+        // 4. Retornar el DTO mapeado (incluyendo los nombres de navegación)
+        var savedDetail = await _context.RecipeDetails
+            .Include(d => d.Ingredient)
+            .Include(d => d.Product)
+            .FirstAsync(d => d.Id == detail.Id);
+
+        return MapToDetailResponse(savedDetail);
+    }
+
+    public async Task<bool> RemoveDetailAsync(int detailId)
+    {
+        var detail = await _context.RecipeDetails.FindAsync(detailId);
+        if (detail == null) return false;
+
+        _context.RecipeDetails.Remove(detail);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    private static RecipeDetailResponse MapToDetailResponse(RecipeDetail d) => new()
+    {
+        Id = d.Id,
+        IngredientId = d.IngredientId,
+        IngredientName = d.Ingredient?.Name,
+        ProductId = d.ProductId,
+        ProductName = d.Product?.Name,
+        Quantity = d.Quantity,
+        Unit = d.Unit
+    };
 }

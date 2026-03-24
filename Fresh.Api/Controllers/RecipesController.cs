@@ -17,6 +17,34 @@ public class RecipesController : ControllerBase
         _recipeService = recipeService;
     }
 
+    [HttpPost("{id}/details")]
+    public async Task<ActionResult<RecipeDetailResponse>> AddDetail(int id, [FromBody] RecipeDetailRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        try
+        {
+            var detail = await _recipeService.AddDetailAsync(id, request);
+            return Ok(detail);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Receta no encontrada" });
+        }
+    }
+
+    [HttpDelete("details/{detailId}")]
+    public async Task<IActionResult> RemoveDetail(int detailId)
+    {
+        var result = await _recipeService.RemoveDetailAsync(detailId);
+        if (!result) return NotFound(new { message = "Detalle no encontrado" });
+
+        return NoContent();
+    }
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
