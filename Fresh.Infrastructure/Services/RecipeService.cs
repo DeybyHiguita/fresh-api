@@ -21,6 +21,10 @@ public class RecipeService : IRecipeService
             .Include(r => r.Category)
             .Include(r => r.RecipeIngredients)
                 .ThenInclude(ri => ri.Ingredient)
+            .Include(r => r.Details)
+                .ThenInclude(d => d.Ingredient)
+            .Include(r => r.Details)
+                .ThenInclude(d => d.Product)
             .Select(r => MapToResponse(r))
             .ToListAsync();
     }
@@ -31,6 +35,10 @@ public class RecipeService : IRecipeService
             .Include(r => r.Category)
             .Include(r => r.RecipeIngredients)
                 .ThenInclude(ri => ri.Ingredient)
+            .Include(r => r.Details)
+                .ThenInclude(d => d.Ingredient)
+            .Include(r => r.Details)
+                .ThenInclude(d => d.Product)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         return recipe == null ? null : MapToResponse(recipe);
@@ -44,13 +52,31 @@ public class RecipeService : IRecipeService
             Description = request.Description,
             Instructions = request.Instructions,
             CategoryId = request.CategoryId,
-            RecipeIngredients = request.Ingredients.Select(i => new RecipeIngredient
+        };
+
+        // Nuevo sistema: Details (ingredientes + productos)
+        if (request.Details.Count > 0)
+        {
+            recipe.Details = request.Details.Select(d => new RecipeDetail
+            {
+                IngredientId = d.IngredientId,
+                ProductId = d.ProductId,
+                Quantity = d.Quantity,
+                Unit = d.Unit,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }).ToList();
+        }
+        else
+        {
+            // Compatibilidad legado: solo Ingredients
+            recipe.RecipeIngredients = request.Ingredients.Select(i => new RecipeIngredient
             {
                 IngredientId = i.IngredientId,
                 Quantity = i.Quantity,
                 Unit = i.Unit
-            }).ToList()
-        };
+            }).ToList();
+        }
 
         _context.Recipes.Add(recipe);
         await _context.SaveChangesAsync();
@@ -62,6 +88,7 @@ public class RecipeService : IRecipeService
     {
         var recipe = await _context.Recipes
             .Include(r => r.RecipeIngredients)
+            .Include(r => r.Details)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (recipe == null) return null;
@@ -72,14 +99,32 @@ public class RecipeService : IRecipeService
         recipe.CategoryId = request.CategoryId;
         recipe.UpdatedAt = DateTime.UtcNow;
 
-        // Reemplazar ingredientes
-        _context.RecipeIngredients.RemoveRange(recipe.RecipeIngredients);
-        recipe.RecipeIngredients = request.Ingredients.Select(i => new RecipeIngredient
+        // Nuevo sistema: Details (ingredientes + productos)
+        if (request.Details.Count > 0)
         {
-            IngredientId = i.IngredientId,
-            Quantity = i.Quantity,
-            Unit = i.Unit
-        }).ToList();
+            _context.RecipeDetails.RemoveRange(recipe.Details);
+            recipe.Details = request.Details.Select(d => new RecipeDetail
+            {
+                RecipeId = id,
+                IngredientId = d.IngredientId,
+                ProductId = d.ProductId,
+                Quantity = d.Quantity,
+                Unit = d.Unit,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }).ToList();
+        }
+        else
+        {
+            // Compatibilidad legado: solo Ingredients
+            _context.RecipeIngredients.RemoveRange(recipe.RecipeIngredients);
+            recipe.RecipeIngredients = request.Ingredients.Select(i => new RecipeIngredient
+            {
+                IngredientId = i.IngredientId,
+                Quantity = i.Quantity,
+                Unit = i.Unit
+            }).ToList();
+        }
 
         await _context.SaveChangesAsync();
 
@@ -130,6 +175,16 @@ public class RecipeService : IRecipeService
                 IngredientName = ri.Ingredient.Name,
                 Quantity = ri.Quantity,
                 Unit = ri.Unit
+            }).ToList(),
+            Details = recipe.Details.Select(d => new RecipeDetailResponse
+            {
+                Id = d.Id,
+                IngredientId = d.IngredientId,
+                IngredientName = d.Ingredient?.Name,
+                ProductId = d.ProductId,
+                ProductName = d.Product?.Name,
+                Quantity = d.Quantity,
+                Unit = d.Unit
             }).ToList()
         };
     }
@@ -162,7 +217,7 @@ public class RecipeService : IRecipeService
         _context.RecipeDetails.Add(detail);
         await _context.SaveChangesAsync();
 
-        // 4. Retornar el DTO mapeado (incluyendo los nombres de navegación)
+        // 4. Retornar el DTO mapeado (incluyendo los nombres de navegaciï¿½n)
         var savedDetail = await _context.RecipeDetails
             .Include(d => d.Ingredient)
             .Include(d => d.Product)

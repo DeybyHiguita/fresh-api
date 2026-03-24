@@ -9,6 +9,7 @@ public class RecipeResponse
     public string CategoryName { get; set; } = string.Empty;
     public int CategoryId { get; set; }
     public List<RecipeIngredientResponse> Ingredients { get; set; } = new();
+    public List<RecipeDetailResponse> Details { get; set; } = new();
 }
 
 public class RecipeIngredientResponse

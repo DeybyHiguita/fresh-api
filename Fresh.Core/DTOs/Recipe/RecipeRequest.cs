@@ -16,6 +16,10 @@ public class RecipeRequest
     [Required]
     public int CategoryId { get; set; }
 
+    // Nuevo sistema unificado (ingredientes + productos)
+    public List<RecipeDetailRequest> Details { get; set; } = new();
+
+    // Compatibilidad con el sistema antiguo (solo ingredientes)
     public List<RecipeIngredientRequest> Ingredients { get; set; } = new();
 }
 

@@ -168,6 +168,26 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<FreshDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("StartupDbPatch");
 
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS recipe_details (
+                id          SERIAL PRIMARY KEY,
+                recipe_id   INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                ingredient_id INTEGER REFERENCES ingredients(id) ON DELETE SET NULL,
+                product_id  INTEGER REFERENCES products(id) ON DELETE SET NULL,
+                quantity    NUMERIC(10,2) NOT NULL DEFAULT 0,
+                unit        VARCHAR(20) NOT NULL DEFAULT '',
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS ix_recipe_details_recipe_id ON recipe_details(recipe_id);
+        ");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning("Startup DB patch error: {msg}", ex.Message);
+    }
 }
 
 // Swagger habilitado siempre (app interna)

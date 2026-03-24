@@ -294,35 +294,29 @@ public class FreshDbContext : DbContext
         {
             entity.ToTable("recipe_details");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.RecipeId).HasColumnName("recipe_id").IsRequired();
+            entity.Property(e => e.IngredientId).HasColumnName("ingredient_id").IsRequired(false);
+            entity.Property(e => e.ProductId).HasColumnName("product_id").IsRequired(false);
+            entity.Property(e => e.Quantity).HasColumnName("quantity").HasPrecision(10, 2);
+            entity.Property(e => e.Unit).HasColumnName("unit").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
-            entity.Property(e => e.IngredientId).IsRequired(false);
-            entity.Property(e => e.ProductId).IsRequired(false);
+            entity.HasOne<Recipe>()
+                  .WithMany(r => r.Details)
+                  .HasForeignKey(d => d.RecipeId)
+                  .OnDelete(DeleteBehavior.Cascade);
 
-            // Relación con Receta
-            entity.Property(e => e.RecipeId).IsRequired(); // Asegura que RecipeId está mapeado
-            entity.HasOne<Recipe>() // No hay propiedad de navegación Recipe, así que solo especifica el tipo
-                  .WithMany(r => r.Details) // Asume que Recipe tiene ICollection<RecipeDetail> Details
-                  .HasForeignKey(d => d.RecipeId);
-
-            // Relación con Ingrediente
             entity.HasOne(d => d.Ingredient)
                   .WithMany()
                   .HasForeignKey(d => d.IngredientId)
                   .OnDelete(DeleteBehavior.SetNull);
 
-            // Relación con Producto
             entity.HasOne(d => d.Product)
                   .WithMany()
                   .HasForeignKey(d => d.ProductId)
                   .OnDelete(DeleteBehavior.SetNull);
-
-            entity.Property(e => e.CreatedAt)
-          .HasColumnName("created_at")
-          .HasDefaultValueSql("NOW()");
-
-            entity.Property(e => e.UpdatedAt)
-                  .HasColumnName("updated_at")
-                  .HasDefaultValueSql("NOW()");
         });
 
         modelBuilder.Entity<RecipeIngredient>(entity =>
