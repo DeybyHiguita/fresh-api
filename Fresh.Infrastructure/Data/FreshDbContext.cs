@@ -32,6 +32,8 @@ public class FreshDbContext : DbContext
     public DbSet<Equipment> Equipments => Set<Equipment>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerCredit> CustomerCredits => Set<CustomerCredit>();
+    public DbSet<UserSession> UserSessions => Set<UserSession>();
+    public DbSet<UserAction> UserActions => Set<UserAction>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Invoice>(entity =>
@@ -70,6 +72,42 @@ public class FreshDbContext : DbContext
           .HasForeignKey<Invoice>(e => e.OrderId)
           .OnDelete(DeleteBehavior.Restrict);
 });
+
+        modelBuilder.Entity<UserSession>(entity =>
+        {
+            entity.ToTable("user_sessions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.ConnectionId).HasColumnName("connection_id").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ConnectedAt).HasColumnName("connected_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.DisconnectedAt).HasColumnName("disconnected_at");
+            entity.Property(e => e.TotalIdleSeconds).HasColumnName("total_idle_seconds").HasDefaultValue(0);
+            entity.Property(e => e.LastKnownLocation).HasColumnName("last_known_location").HasMaxLength(255).HasDefaultValue("Dashboard");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.UserId).HasDatabaseName("ix_user_sessions_user_id");
+            entity.HasIndex(e => e.ConnectionId).HasDatabaseName("ix_user_sessions_connection_id");
+
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserAction>(entity =>
+        {
+            entity.ToTable("user_actions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.SessionId).HasColumnName("session_id").IsRequired();
+            entity.Property(e => e.ActionType).HasColumnName("action_type").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.SessionId).HasDatabaseName("ix_user_actions_session_id");
+            entity.HasIndex(e => e.CreatedAt).HasDatabaseName("ix_user_actions_created_at");
+
+            entity.HasOne(e => e.Session).WithMany(s => s.Actions).HasForeignKey(e => e.SessionId).OnDelete(DeleteBehavior.Cascade);
+        });
 
 
         modelBuilder.Entity<Customer>(entity =>

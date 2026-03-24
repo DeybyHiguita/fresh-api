@@ -33,6 +33,9 @@ builder.Services.AddScoped<IEquipmentCategoryService, EquipmentCategoryService>(
 builder.Services.AddScoped<IEquipmentService, EquipmentService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();
+builder.Services.AddScoped<IUserSessionService, UserSessionService>();
+builder.Services.AddSignalR(); // ¡Habilita WebSockets!
+builder.Services.AddScoped<IUserService, UserService>();
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -94,15 +97,12 @@ builder.Services.AddSwaggerGen(options =>
 // CORS (para Angular en desarrollo y Docker)
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAngular", policy =>
+    options.AddPolicy("CorsPolicy", builder =>
     {
-        policy.WithOrigins(
-                  "http://localhost:4200",
-                  "https://fresh-app-production.up.railway.app"
-              )
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-        // .AllowCredentials() eliminado para evitar error CORS 500
+        builder.WithOrigins("http://localhost:4200")
+               .AllowAnyHeader()
+               .AllowAnyMethod()
+               .AllowCredentials();
     });
 });
 
@@ -140,10 +140,13 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseCors("AllowAngular");
+app.UseRouting();
+
+app.UseCors("CorsPolicy"); // Asegúrate de llamar a la política ANTES de Authentication y Authorization
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<ApiLoggingMiddleware>();
 app.MapControllers();
-
+app.MapHub<Fresh.Api.Hubs.PresenceHub>("/hubs/presence");
 app.Run();
