@@ -85,15 +85,33 @@ public class CashRegisterService : ICashRegisterService
             .Where(i => i.PaymentMethod.Equals("Tarjeta", StringComparison.OrdinalIgnoreCase))
             .Sum(i => i.TotalAmount);
 
+        // Gastos ingresados al sistema durante el turno (mismo rango que las facturas)
+        var expenses = await _context.Expenses
+            .Where(e => e.CreatedAt >= register.OpeningTime && e.CreatedAt <= until)
+            .ToListAsync();
+
+        decimal expCash     = expenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        decimal expTransfer = expenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        decimal expCard     = expenses.Where(e => e.PaymentMethod.Equals("Tarjeta",       StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        decimal totalExp    = expCash + expTransfer + expCard;
+
         return new CashSystemTotalsResponse
         {
-            RegisterId    = id,
-            OpeningBalance = register.OpeningBalance,
-            SystemCash    = systemCash,
-            SystemTransfer = systemTransfer,
-            SystemCard    = systemCard,
-            TotalInvoices = systemCash - register.OpeningBalance + systemTransfer + systemCard,
-            InvoiceCount  = invoices.Count
+            RegisterId       = id,
+            OpeningBalance   = register.OpeningBalance,
+            SystemCash       = systemCash,
+            SystemTransfer   = systemTransfer,
+            SystemCard       = systemCard,
+            TotalInvoices    = systemCash - register.OpeningBalance + systemTransfer + systemCard,
+            InvoiceCount     = invoices.Count,
+            ExpensesCash     = expCash,
+            ExpensesTransfer = expTransfer,
+            ExpensesCard     = expCard,
+            TotalExpenses    = totalExp,
+            ExpenseCount     = expenses.Count,
+            NetCash          = systemCash - expCash,
+            NetTransfer      = systemTransfer - expTransfer,
+            NetCard          = systemCard - expCard,
         };
     }
 
@@ -135,8 +153,16 @@ public class CashRegisterService : ICashRegisterService
         register.Observations    = request.Observations;
         register.UpdatedAt       = DateTimeOffset.UtcNow;
 
-        // Caja descuadrada si diferencia de efectivo supera $1000
-        decimal diff = Math.Abs(request.ReportedCash - calculatedSystemCash);
+        // Descuento de gastos del turno para determinar el efectivo esperado real
+        var expensesCash = await _context.Expenses
+            .Where(e => e.CreatedAt >= register.OpeningTime && e.CreatedAt <= closingTime
+                     && e.PaymentMethod == "Efectivo")
+            .SumAsync(e => e.AmountPaid);
+
+        decimal netCashExpected = calculatedSystemCash - expensesCash;
+
+        // Caja descuadrada si diferencia de efectivo (descontando gastos) supera $1000
+        decimal diff = Math.Abs(request.ReportedCash - netCashExpected);
         register.Status = diff > 1000m ? "Descuadrada" : "Cerrada";
 
         _context.CashRegisters.Update(register);
