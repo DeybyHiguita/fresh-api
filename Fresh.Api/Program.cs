@@ -1,4 +1,3 @@
-using System.Text;
 using Fresh.Api.Middleware;
 using Fresh.Core.Interfaces;
 using Fresh.Infrastructure.Data;
@@ -6,6 +5,8 @@ using Fresh.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +34,8 @@ builder.Services.AddScoped<IEquipmentCategoryService, EquipmentCategoryService>(
 builder.Services.AddScoped<IEquipmentService, EquipmentService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();
-builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IAppPageService, AppPageService>();
+builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -55,7 +57,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // Controllers + Swagger
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -93,66 +99,56 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // CORS (para Angular en desarrollo y Docker)
+// CORS (para Angular en desarrollo y Docker)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
     {
-        policy.WithOrigins(
-                  "http://localhost:4200",
-                  "https://fresh-app-production.up.railway.app"
-              )
+        policy.SetIsOriginAllowed(_ => true) // 👈 Permite cualquier origen dinámicamente
               .AllowAnyHeader()
-              .AllowAnyMethod();
-        // .AllowCredentials() eliminado para evitar error CORS 500
+              .AllowAnyMethod()
+              .AllowCredentials();           // 👈 Vuelve a habilitar las credenciales
     });
 });
 
 var app = builder.Build();
+
+// 👇 --- INICIO DEL RASTREADOR --- 👇
+app.Use(async (context, next) =>
+{
+    // Ignorar el spam de preflights (OPTIONS) para ver los GET/POST reales
+    if (context.Request.Method == "OPTIONS") 
+    {
+        await next(context);
+        return;
+    }
+
+    Console.WriteLine($"[---> LLEGÓ A C#] {context.Request.Method} {context.Request.Path}");
+    var watch = System.Diagnostics.Stopwatch.StartNew();
+    
+    try
+    {
+        await next(context);
+        watch.Stop();
+        Console.WriteLine($"[<--- RESPONDIÓ C#] {context.Request.Method} {context.Request.Path} en {watch.ElapsedMilliseconds}ms (Status: {context.Response.StatusCode})");
+    }
+    catch (Exception ex)
+    {
+        watch.Stop();
+        Console.WriteLine($"[!!! EXPLOTÓ C#] {context.Request.Method} {context.Request.Path} - ERROR: {ex.Message}");
+        throw;
+    }
+});
+// 👆 --- FIN DEL RASTREADOR --- 👆
+
+app.UseRouting();
+// ... resto de tu código
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FreshDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("StartupDbPatch");
 
-    try
-    {
-        await db.Database.ExecuteSqlRawAsync(@"
-            CREATE TABLE IF NOT EXISTS user_permissions (
-                id          SERIAL      PRIMARY KEY,
-                user_id     INT         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                page        VARCHAR(50) NOT NULL,
-                can_access  BOOLEAN     NOT NULL DEFAULT false,
-                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                CONSTRAINT ux_user_permissions_user_page UNIQUE (user_id, page)
-            );
-            CREATE INDEX IF NOT EXISTS ix_user_permissions_user_id ON user_permissions (user_id);
-        ");
-
-        // Garantizar que admin@admin.com sea siempre admin activo
-        await db.Database.ExecuteSqlRawAsync(@"
-            UPDATE users SET role='admin', is_active=true, updated_at=NOW()
-            WHERE email='admin@admin.com';
-        ");
-
-        // Inicializar permisos completos para admins (INSERT o UPDATE a true si ya existen)
-        await db.Database.ExecuteSqlRawAsync(@"
-            INSERT INTO user_permissions (user_id, page, can_access, updated_at)
-            SELECT u.id, p.page, true, NOW()
-            FROM users u
-            CROSS JOIN (VALUES
-                ('dashboard'), ('recipes'), ('ingredients'), ('inventory'),
-                ('orders'), ('menu-items'), ('cash-registers'), ('work-shifts'),
-                ('customers'), ('expenses'), ('equipments')
-            ) AS p(page)
-            WHERE u.role = 'admin'
-            ON CONFLICT (user_id, page) DO UPDATE
-                SET can_access = true, updated_at = NOW();
-        ");
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "No se pudo aplicar patch de startup para user_permissions");
-    }
 }
 
 using (var scope = app.Services.CreateScope())
