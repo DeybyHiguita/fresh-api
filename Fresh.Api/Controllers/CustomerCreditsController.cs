@@ -42,4 +42,10 @@ public class CustomerCreditsController : ControllerBase
         }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
+
+    [HttpGet("customer/{customerId}/transactions")]
+    public async Task<ActionResult<IEnumerable<CreditTransactionResponse>>> GetTransactions(int customerId)
+    {
+        return Ok(await _service.GetTransactionsAsync(customerId));
+    }
 }

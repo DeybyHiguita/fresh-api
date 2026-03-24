@@ -19,6 +19,7 @@ public class OrderService : IOrderService
     {
         var orders = await _context.Orders
             .Include(o => o.User)
+            .Include(o => o.Customer)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.MenuItem)
             .OrderByDescending(o => o.CreatedAt)
@@ -31,6 +32,7 @@ public class OrderService : IOrderService
     {
         var order = await _context.Orders
             .Include(o => o.User)
+            .Include(o => o.Customer)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.MenuItem)
             .FirstOrDefaultAsync(o => o.Id == id);
@@ -55,9 +57,44 @@ public class OrderService : IOrderService
         decimal total = subtotal - request.Discount;
         if (total < 0) throw new InvalidOperationException("El descuento no puede ser mayor al subtotal.");
 
+        // Validar cliente registrado y crédito si aplica
+        CustomerCredit? customerCredit = null;
+        if (request.CustomerId.HasValue)
+        {
+            var customer = await _context.Customers
+                .Include(c => c.CreditInfo)
+                .FirstOrDefaultAsync(c => c.Id == request.CustomerId.Value && c.IsActive);
+
+            if (customer == null)
+                throw new KeyNotFoundException($"El cliente con ID {request.CustomerId.Value} no existe o está inactivo.");
+
+            // Autocompletar nombre si viene vacío
+            if (string.IsNullOrWhiteSpace(request.CustomerName))
+                request.CustomerName = $"{customer.FirstName} {customer.LastName}";
+            if (string.IsNullOrWhiteSpace(request.CustomerPhone) && !string.IsNullOrWhiteSpace(customer.Phone))
+                request.CustomerPhone = customer.Phone;
+
+            if (request.PaymentMethod == "Crédito")
+            {
+                customerCredit = customer.CreditInfo;
+                if (customerCredit == null)
+                    throw new InvalidOperationException("El cliente no tiene cuenta de crédito configurada.");
+
+                decimal available = customerCredit.CreditLimit - customerCredit.CurrentBalance;
+                if (available < total)
+                    throw new InvalidOperationException(
+                        $"Cupo insuficiente. Disponible: ${available:F2}, Total de la orden: ${total:F2}.");
+            }
+        }
+        else if (request.PaymentMethod == "Crédito")
+        {
+            throw new InvalidOperationException("Debes seleccionar un cliente registrado para usar pago a crédito.");
+        }
+
         var order = new Order
         {
             UserId = request.UserId,
+            CustomerId = request.CustomerId,
             CustomerName = request.CustomerName,
             CustomerPhone = request.CustomerPhone,
             Subtotal = subtotal,
@@ -65,7 +102,7 @@ public class OrderService : IOrderService
             Total = total,
             OrderType = request.OrderType,
             PaymentMethod = request.PaymentMethod,
-            Status = "Pendiente", // Por defecto
+            Status = "Pendiente",
             Notes = request.Notes,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -84,19 +121,64 @@ public class OrderService : IOrderService
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
-        // Recargar la orden para obtener nombres de Usuario y MenuItems y mapear correctamente
         return await GetByIdAsync(order.Id) ?? throw new Exception("Error al recuperar la orden creada.");
     }
 
     public async Task<OrderResponse?> UpdateStatusAsync(int id, string newStatus)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders
+            .Include(o => o.Customer)
+                .ThenInclude(c => c!.CreditInfo)
+            .FirstOrDefaultAsync(o => o.Id == id);
+
         if (order == null) throw new KeyNotFoundException($"Orden {id} no encontrada.");
+
+        // Validar transiciones permitidas
+        var currentStatus = order.Status;
+
+        if (currentStatus == "Cancelado")
+            throw new InvalidOperationException("La orden ya está cancelada y no puede cambiar de estado.");
+
+        if (currentStatus == "Entregado")
+            throw new InvalidOperationException("La orden ya fue entregada y no puede cambiar de estado.");
+
+        if (currentStatus == "Pendiente" && newStatus != "Cancelado" && newStatus != "Entregado")
+            throw new InvalidOperationException("Una orden pendiente solo puede pasar a 'Entregado' o 'Cancelado'.");
 
         order.Status = newStatus;
         order.UpdatedAt = DateTimeOffset.UtcNow;
-
         _context.Orders.Update(order);
+
+        // Descontar crédito cuando la orden es entregada
+        if (newStatus == "Entregado" && order.CustomerId.HasValue && order.PaymentMethod == "Crédito")
+        {
+            var customerCredit = order.Customer?.CreditInfo;
+            if (customerCredit != null)
+            {
+                decimal balanceBefore = customerCredit.CurrentBalance;
+                customerCredit.CurrentBalance += order.Total;
+                customerCredit.Status = customerCredit.CurrentBalance >= customerCredit.CreditLimit
+                    ? "Límite alcanzado"
+                    : customerCredit.CurrentBalance > 0 ? "Con deuda" : "Al día";
+                customerCredit.UpdatedAt = DateTimeOffset.UtcNow;
+                _context.CustomerCredits.Update(customerCredit);
+
+                await _context.SaveChangesAsync();
+
+                _context.CreditTransactions.Add(new CreditTransaction
+                {
+                    CustomerCreditId = customerCredit.Id,
+                    OrderId = order.Id,
+                    Type = "Cargo",
+                    Amount = order.Total,
+                    BalanceBefore = balanceBefore,
+                    BalanceAfter = customerCredit.CurrentBalance,
+                    Description = $"Compra - Orden #{order.Id}",
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
+
         await _context.SaveChangesAsync();
 
         return await GetByIdAsync(id);
@@ -107,6 +189,7 @@ public class OrderService : IOrderService
         Id = o.Id,
         UserId = o.UserId,
         UserName = o.User?.Name ?? "Desconocido",
+        CustomerId = o.CustomerId,
         CustomerName = o.CustomerName,
         CustomerPhone = o.CustomerPhone,
         Subtotal = o.Subtotal,

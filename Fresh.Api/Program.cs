@@ -32,10 +32,12 @@ builder.Services.AddScoped<ICashRegisterService, CashRegisterService>();
 builder.Services.AddScoped<IEquipmentCategoryService, EquipmentCategoryService>();
 builder.Services.AddScoped<IEquipmentService, EquipmentService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
-builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();
+builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();<<<<<<< feature/signal
 builder.Services.AddScoped<IUserSessionService, UserSessionService>();
 builder.Services.AddSignalR(); // ¡Habilita WebSockets!
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -107,6 +109,52 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FreshDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("StartupDbPatch");
+
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS user_permissions (
+                id          SERIAL      PRIMARY KEY,
+                user_id     INT         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                page        VARCHAR(50) NOT NULL,
+                can_access  BOOLEAN     NOT NULL DEFAULT false,
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT ux_user_permissions_user_page UNIQUE (user_id, page)
+            );
+            CREATE INDEX IF NOT EXISTS ix_user_permissions_user_id ON user_permissions (user_id);
+        ");
+
+        // Garantizar que admin@admin.com sea siempre admin activo
+        await db.Database.ExecuteSqlRawAsync(@"
+            UPDATE users SET role='admin', is_active=true, updated_at=NOW()
+            WHERE email='admin@admin.com';
+        ");
+
+        // Inicializar permisos completos para admins (INSERT o UPDATE a true si ya existen)
+        await db.Database.ExecuteSqlRawAsync(@"
+            INSERT INTO user_permissions (user_id, page, can_access, updated_at)
+            SELECT u.id, p.page, true, NOW()
+            FROM users u
+            CROSS JOIN (VALUES
+                ('dashboard'), ('recipes'), ('ingredients'), ('inventory'),
+                ('orders'), ('menu-items'), ('cash-registers'), ('work-shifts'),
+                ('customers'), ('expenses'), ('equipments')
+            ) AS p(page)
+            WHERE u.role = 'admin'
+            ON CONFLICT (user_id, page) DO UPDATE
+                SET can_access = true, updated_at = NOW();
+        ");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "No se pudo aplicar patch de startup para user_permissions");
+    }
+}
 
 using (var scope = app.Services.CreateScope())
 {

@@ -31,9 +31,12 @@ public class FreshDbContext : DbContext
     public DbSet<EquipmentCategory> EquipmentCategories => Set<EquipmentCategory>();
     public DbSet<Equipment> Equipments => Set<Equipment>();
     public DbSet<Customer> Customers => Set<Customer>();
-    public DbSet<CustomerCredit> CustomerCredits => Set<CustomerCredit>();
+    public DbSet<CustomerCredit> CustomerCredits => Set<CustomerCredit>();<<<<<<< feature/signal
     public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<UserAction> UserActions => Set<UserAction>();
+    public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
+    public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Invoice>(entity =>
@@ -157,56 +160,87 @@ public class FreshDbContext : DbContext
 
             entity.HasOne(e => e.Customer).WithOne(c => c.CreditInfo).HasForeignKey<CustomerCredit>(e => e.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<CreditTransaction>(entity =>
+        {
+            entity.ToTable("credit_transactions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+
+            entity.Property(e => e.CustomerCreditId).HasColumnName("customer_credit_id").IsRequired();
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.Type).HasColumnName("type").HasMaxLength(20).HasDefaultValue("Cargo");
+            entity.Property(e => e.Amount).HasColumnName("amount").HasPrecision(10, 2).IsRequired();
+            entity.Property(e => e.BalanceBefore).HasColumnName("balance_before").HasPrecision(10, 2).IsRequired();
+            entity.Property(e => e.BalanceAfter).HasColumnName("balance_after").HasPrecision(10, 2).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(300);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.CustomerCreditId).HasDatabaseName("ix_credit_tx_credit_id");
+            entity.HasIndex(e => e.OrderId).HasDatabaseName("ix_credit_tx_order_id");
+
+            entity.HasOne(e => e.CustomerCredit)
+                  .WithMany()
+                  .HasForeignKey(e => e.CustomerCreditId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Order)
+                  .WithMany()
+                  .HasForeignKey(e => e.OrderId)
+                  .OnDelete(DeleteBehavior.SetNull)
+                  .IsRequired(false);
+        });
+
         modelBuilder.Entity<ExpenseType>(entity =>
-{
-    entity.ToTable("expense_types");
-    entity.HasKey(e => e.Id);
-    entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-    
-    entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(150).IsRequired();
-    entity.Property(e => e.Description).HasColumnName("description");
-    entity.Property(e => e.ExpectedAmount).HasColumnName("expected_amount").HasPrecision(10, 2).HasDefaultValue(0m);
-    entity.Property(e => e.Frequency).HasColumnName("frequency").HasMaxLength(50).HasDefaultValue("Mensual");
-    entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
-    
-    entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
-    entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
-    
-    entity.HasIndex(e => e.Name).HasDatabaseName("ix_expense_types_name");
-});
+        {
+            entity.ToTable("expense_types");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
 
-modelBuilder.Entity<Expense>(entity =>
-{
-    entity.ToTable("expenses");
-    entity.HasKey(e => e.Id);
-    entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-    
-    entity.Property(e => e.ExpenseTypeId).HasColumnName("expense_type_id").IsRequired();
-    entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
-    
-    entity.Property(e => e.AmountPaid).HasColumnName("amount_paid").HasPrecision(10, 2).IsRequired();
-    entity.Property(e => e.PaymentDate).HasColumnName("payment_date").IsRequired();
-    entity.Property(e => e.PaymentMethod).HasColumnName("payment_method").HasMaxLength(50).HasDefaultValue("Efectivo");
-    entity.Property(e => e.Notes).HasColumnName("notes");
-    
-    entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
-    entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.ExpectedAmount).HasColumnName("expected_amount").HasPrecision(10, 2).HasDefaultValue(0m);
+            entity.Property(e => e.Frequency).HasColumnName("frequency").HasMaxLength(50).HasDefaultValue("Mensual");
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 
-    entity.HasIndex(e => e.ExpenseTypeId).HasDatabaseName("ix_expenses_expense_type_id");
-    entity.HasIndex(e => e.UserId).HasDatabaseName("ix_expenses_user_id");
-    entity.HasIndex(e => e.PaymentDate).HasDatabaseName("ix_expenses_payment_date");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
-    // Relaciones
-    entity.HasOne(e => e.ExpenseType)
-          .WithMany(t => t.Expenses)
-          .HasForeignKey(e => e.ExpenseTypeId)
-          .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.Name).HasDatabaseName("ix_expense_types_name");
+        });
 
-    entity.HasOne(e => e.User)
-          .WithMany()
-          .HasForeignKey(e => e.UserId)
-          .OnDelete(DeleteBehavior.Restrict);
-});
+        modelBuilder.Entity<Expense>(entity =>
+        {
+            entity.ToTable("expenses");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+
+            entity.Property(e => e.ExpenseTypeId).HasColumnName("expense_type_id").IsRequired();
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+
+            entity.Property(e => e.AmountPaid).HasColumnName("amount_paid").HasPrecision(10, 2).IsRequired();
+            entity.Property(e => e.PaymentDate).HasColumnName("payment_date").IsRequired();
+            entity.Property(e => e.PaymentMethod).HasColumnName("payment_method").HasMaxLength(50).HasDefaultValue("Efectivo");
+            entity.Property(e => e.Notes).HasColumnName("notes");
+
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.ExpenseTypeId).HasDatabaseName("ix_expenses_expense_type_id");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("ix_expenses_user_id");
+            entity.HasIndex(e => e.PaymentDate).HasDatabaseName("ix_expenses_payment_date");
+
+            // Relaciones
+            entity.HasOne(e => e.ExpenseType)
+                  .WithMany(t => t.Expenses)
+                  .HasForeignKey(e => e.ExpenseTypeId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -442,6 +476,7 @@ modelBuilder.Entity<Expense>(entity =>
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
 
             entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.CustomerId).HasColumnName("customer_id");
             entity.Property(e => e.CustomerName).HasColumnName("customer_name").HasMaxLength(150);
             entity.Property(e => e.CustomerPhone).HasColumnName("customer_phone").HasMaxLength(20);
 
@@ -458,6 +493,7 @@ modelBuilder.Entity<Expense>(entity =>
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
             entity.HasIndex(e => e.UserId).HasDatabaseName("ix_orders_user_id");
+            entity.HasIndex(e => e.CustomerId).HasDatabaseName("ix_orders_customer_id");
             entity.HasIndex(e => e.CreatedAt).HasDatabaseName("ix_orders_created_at");
 
             // Relaci�n
@@ -465,6 +501,12 @@ modelBuilder.Entity<Expense>(entity =>
                   .WithMany()
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Customer)
+                  .WithMany()
+                  .HasForeignKey(e => e.CustomerId)
+                  .OnDelete(DeleteBehavior.SetNull)
+                  .IsRequired(false);
         });
 
         modelBuilder.Entity<OrderItem>(entity =>
@@ -578,6 +620,23 @@ modelBuilder.Entity<Expense>(entity =>
                   .WithMany(c => c.Equipments)
                   .HasForeignKey(e => e.CategoryId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UserPermission>(entity =>
+        {
+            entity.ToTable("user_permissions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.UserId).HasColumnName("user_id").IsRequired();
+            entity.Property(e => e.Page).HasColumnName("page").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.CanAccess).HasColumnName("can_access").HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("ix_user_permissions_user_id");
+            entity.HasIndex(e => new { e.UserId, e.Page }).IsUnique().HasDatabaseName("ux_user_permissions_user_page");
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

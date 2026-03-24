@@ -22,6 +22,8 @@ public class OrderRequest
     [Required]
     public int UserId { get; set; }
 
+    public int? CustomerId { get; set; }
+
     [MaxLength(150)]
     public string? CustomerName { get; set; }
 
