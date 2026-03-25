@@ -58,26 +58,32 @@ public class CustomerCreditService : ICustomerCreditService
         var credit = await _context.CustomerCredits.FindAsync(id);
         if (credit == null) return null;
 
-        if (request.AmountPaid > credit.CurrentBalance)
+        if (request.Amount > credit.CurrentBalance)
             throw new InvalidOperationException($"El cliente solo debe ${credit.CurrentBalance}.");
 
         decimal balanceBefore = credit.CurrentBalance;
-        credit.CurrentBalance -= request.AmountPaid;
+        credit.CurrentBalance -= request.Amount;
         credit.Status = credit.CurrentBalance <= 0 ? "Al día"
                        : credit.CurrentBalance < credit.CreditLimit ? "Con deuda"
                        : "Límite alcanzado";
         credit.UpdatedAt = DateTimeOffset.UtcNow;
         _context.CustomerCredits.Update(credit);
 
+        var description = "Pago registrado manualmente";
+        if (!string.IsNullOrWhiteSpace(request.PaymentMethod))
+            description += $" ({request.PaymentMethod})";
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+            description += $": {request.Notes}";
+
         _context.CreditTransactions.Add(new CreditTransaction
         {
             CustomerCreditId = credit.Id,
             OrderId = null,
             Type = "Abono",
-            Amount = request.AmountPaid,
+            Amount = request.Amount,
             BalanceBefore = balanceBefore,
             BalanceAfter = credit.CurrentBalance,
-            Description = $"Pago registrado manualmente",
+            Description = description,
             CreatedAt = DateTimeOffset.UtcNow
         });
 
