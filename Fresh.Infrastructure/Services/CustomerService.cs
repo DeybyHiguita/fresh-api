@@ -35,9 +35,24 @@ public class CustomerService : ICustomerService
 
     public async Task<CustomerResponse> CreateAsync(CustomerRequest request)
     {
-        var exists = await _context.Customers.AnyAsync(c => c.DocumentNumber == request.DocumentNumber);
-        if (exists) throw new InvalidOperationException($"Ya existe un cliente con el documento '{request.DocumentNumber}'");
-
+        var exists = await _context.Customers.AnyAsync(c => c.DocumentNumber == request.DocumentNumber && c.IsActive);
+        if (exists) throw new InvalidOperationException($"Ya existe un cliente activo con el documento '{request.DocumentNumber}'");
+        // If a soft-deleted customer with the same document exists, reactivate them
+        var inactive = await _context.Customers.FirstOrDefaultAsync(c => c.DocumentNumber == request.DocumentNumber && !c.IsActive);
+        if (inactive != null)
+        {
+            inactive.FirstName = request.FirstName;
+            inactive.LastName = request.LastName;
+            inactive.Phone = request.Phone;
+            inactive.Address = request.Address;
+            inactive.ReferenceName = request.ReferenceName;
+            inactive.ReferencePhone = request.ReferencePhone;
+            inactive.IsActive = true;
+            inactive.UpdatedAt = DateTimeOffset.UtcNow;
+            _context.Customers.Update(inactive);
+            await _context.SaveChangesAsync();
+            return await GetByIdAsync(inactive.Id) ?? throw new Exception("Error mapeando cliente.");
+        }
         var userExists = await _context.Users.AnyAsync(u => u.Id == request.CreatedById);
         if (!userExists) throw new KeyNotFoundException("El cajero responsable no existe.");
 
