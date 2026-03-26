@@ -37,6 +37,7 @@ public class MenuItemService : IMenuItemService
             PreparationCost = request.PreparationCost,
             SalePrice = request.SalePrice,
             IsAvailable = request.IsAvailable,
+            ImgUrl = request.ImgUrl,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -58,6 +59,7 @@ public class MenuItemService : IMenuItemService
         menuItem.PreparationCost = request.PreparationCost;
         menuItem.SalePrice = request.SalePrice;
         menuItem.IsAvailable = request.IsAvailable;
+        menuItem.ImgUrl = request.ImgUrl;
         menuItem.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -85,6 +87,7 @@ public class MenuItemService : IMenuItemService
         PreparationCost = menuItem.PreparationCost,
         SalePrice = menuItem.SalePrice,
         IsAvailable = menuItem.IsAvailable,
+        ImgUrl = menuItem.ImgUrl,
         CreatedAt = menuItem.CreatedAt,
         UpdatedAt = menuItem.UpdatedAt
     };
