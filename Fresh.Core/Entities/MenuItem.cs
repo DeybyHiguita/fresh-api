@@ -11,6 +11,7 @@ namespace Fresh.Core.Entities
         public decimal PreparationCost { get; set; }
         public decimal SalePrice { get; set; }
         public bool IsAvailable { get; set; } = true;
+        public string? ImgUrl { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }

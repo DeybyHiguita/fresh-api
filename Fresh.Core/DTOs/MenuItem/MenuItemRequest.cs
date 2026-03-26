@@ -21,4 +21,7 @@ public class MenuItemRequest
     public decimal SalePrice { get; set; }
 
     public bool IsAvailable { get; set; } = true;
+
+    [MaxLength(2048)]
+    public string? ImgUrl { get; set; }
 }

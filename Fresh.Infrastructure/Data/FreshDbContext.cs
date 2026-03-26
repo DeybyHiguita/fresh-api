@@ -491,6 +491,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.PreparationCost).HasColumnName("preparation_cost").HasPrecision(10, 2);
             entity.Property(e => e.SalePrice).HasColumnName("sale_price").HasPrecision(10, 2);
             entity.Property(e => e.IsAvailable).HasColumnName("is_available").HasDefaultValue(true);
+            entity.Property(e => e.ImgUrl).HasColumnName("img_url");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
         });
