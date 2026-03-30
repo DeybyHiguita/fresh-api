@@ -101,7 +101,11 @@ public class PurchaseBatchService : IPurchaseBatchService
             throw new KeyNotFoundException($"El producto con ID {request.ProductId} no existe");
 
         if (!product.IsActive)
-            throw new InvalidOperationException($"El producto '{product.Name}' no está activo");
+            throw new InvalidOperationException($"El producto '{product.Name}' no estï¿½ activo");
+
+        var resolvedUnitPrice = request.UnitPrice > 0
+            ? request.UnitPrice
+            : (request.Quantity > 0 && request.TotalValue > 0 ? Math.Round(request.TotalValue / request.Quantity, 4) : 0m);
 
         var detail = new PurchaseDetail
         {
@@ -109,6 +113,7 @@ public class PurchaseBatchService : IPurchaseBatchService
             ProductId = request.ProductId,
             Quantity = request.Quantity,
             TotalValue = request.TotalValue,
+            UnitPrice = resolvedUnitPrice,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -137,7 +142,7 @@ public class PurchaseBatchService : IPurchaseBatchService
             throw new KeyNotFoundException($"El producto con ID {request.ProductId} no existe");
 
         if (!product.IsActive)
-            throw new InvalidOperationException($"El producto '{product.Name}' no está activo");
+            throw new InvalidOperationException($"El producto '{product.Name}' no estï¿½ activo");
 
         // Revertir el stock anterior y aplicar el nuevo
         detail.Product.CurrentStock -= detail.Quantity;
@@ -146,9 +151,14 @@ public class PurchaseBatchService : IPurchaseBatchService
         product.CurrentStock += request.Quantity;
         product.UpdatedAt = DateTime.UtcNow;
 
+        var resolvedUnitPrice = request.UnitPrice > 0
+            ? request.UnitPrice
+            : (request.Quantity > 0 && request.TotalValue > 0 ? Math.Round(request.TotalValue / request.Quantity, 4) : 0m);
+
         detail.ProductId = request.ProductId;
         detail.Quantity = request.Quantity;
         detail.TotalValue = request.TotalValue;
+        detail.UnitPrice = resolvedUnitPrice;
         detail.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -198,6 +208,7 @@ public class PurchaseBatchService : IPurchaseBatchService
         ProductUnit = product.UnitMeasure,
         Quantity = detail.Quantity,
         TotalValue = detail.TotalValue,
+        UnitPrice = detail.UnitPrice,
         CreatedAt = detail.CreatedAt,
         UpdatedAt = detail.UpdatedAt
     };

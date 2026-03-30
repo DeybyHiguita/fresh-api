@@ -9,6 +9,7 @@ public class PurchaseDetailResponse
     public string ProductUnit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal TotalValue { get; set; }
+    public decimal UnitPrice { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

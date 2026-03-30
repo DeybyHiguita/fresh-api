@@ -94,4 +94,15 @@ public class MenuItemsController : ControllerBase
 
         return NoContent();
     }
+
+    /// <summary>
+    /// Reordena los productos del menú en lote
+    /// </summary>
+    [Authorize]
+    [HttpPatch("reorder")]
+    public async Task<IActionResult> Reorder([FromBody] ReorderMenuItemsRequest request)
+    {
+        await _menuItemService.ReorderAsync(request.Items);
+        return NoContent();
+    }
 }
