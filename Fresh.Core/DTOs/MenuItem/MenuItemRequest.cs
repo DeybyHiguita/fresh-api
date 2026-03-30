@@ -24,4 +24,7 @@ public class MenuItemRequest
 
     [MaxLength(2048)]
     public string? ImgUrl { get; set; }
+
+    [Range(0, int.MaxValue)]
+    public int SortOrder { get; set; } = 0;
 }

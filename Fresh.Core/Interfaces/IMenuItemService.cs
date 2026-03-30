@@ -12,5 +12,6 @@ namespace Fresh.Core.Interfaces
         Task<MenuItemResponse> CreateAsync(MenuItemRequest request);
         Task<MenuItemResponse?> UpdateAsync(int id, MenuItemRequest request);
         Task<bool> DeleteAsync(int id);
+        Task ReorderAsync(IEnumerable<ReorderMenuItemsRequest.SortOrderItem> items);
     }
 }

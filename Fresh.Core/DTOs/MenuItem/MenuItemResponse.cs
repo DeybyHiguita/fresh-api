@@ -12,6 +12,7 @@ namespace Fresh.Core.DTOs.MenuItem
         public decimal SalePrice { get; set; }
         public bool IsAvailable { get; set; }
         public string? ImgUrl { get; set; }
+        public int SortOrder { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

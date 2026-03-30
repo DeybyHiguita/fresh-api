@@ -7,6 +7,7 @@ public class PurchaseDetail
     public int ProductId { get; set; }
     public decimal Quantity { get; set; }
     public decimal TotalValue { get; set; }
+    public decimal UnitPrice { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

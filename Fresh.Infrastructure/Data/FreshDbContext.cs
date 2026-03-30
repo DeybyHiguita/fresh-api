@@ -413,6 +413,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.ProductId).HasColumnName("product_id");
             entity.Property(e => e.Quantity).HasColumnName("quantity").HasPrecision(10, 2);
             entity.Property(e => e.TotalValue).HasColumnName("total_value").HasPrecision(12, 2);
+            entity.Property(e => e.UnitPrice).HasColumnName("unit_price").HasPrecision(12, 4).HasDefaultValue(0m);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             entity.HasOne(e => e.Batch)
@@ -492,6 +493,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.SalePrice).HasColumnName("sale_price").HasPrecision(10, 2);
             entity.Property(e => e.IsAvailable).HasColumnName("is_available").HasDefaultValue(true);
             entity.Property(e => e.ImgUrl).HasColumnName("img_url");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
         });

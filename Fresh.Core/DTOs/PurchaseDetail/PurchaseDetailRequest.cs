@@ -14,4 +14,7 @@ public class PurchaseDetailRequest
     [Required]
     [Range(0, double.MaxValue, ErrorMessage = "El valor total no puede ser negativo")]
     public decimal TotalValue { get; set; }
+
+    [Range(0, double.MaxValue, ErrorMessage = "El precio por unidad no puede ser negativo")]
+    public decimal UnitPrice { get; set; }
 }
