@@ -11,5 +11,7 @@ public class ExpenseResponse
     public DateOnly PaymentDate { get; set; }
     public string PaymentMethod { get; set; } = string.Empty;
     public string? Notes { get; set; }
+    public int? PurchaseBatchId { get; set; }
+    public string? PurchaseBatchName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

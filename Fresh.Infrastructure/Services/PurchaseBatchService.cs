@@ -41,6 +41,35 @@ public class PurchaseBatchService : IPurchaseBatchService
         return (batches.Select(MapToResponse), total);
     }
 
+    public async Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search)
+    {
+        var query = _context.PurchaseBatches.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(b => EF.Functions.ILike(b.BatchName, $"%{search.Trim()}%"));
+
+        // Count and list run in parallel — one round-trip each, zero serialization
+        var countTask = query.CountAsync();
+
+        var itemsTask = query
+            .OrderByDescending(b => b.StartDate)
+            .Skip(skip)
+            .Take(take)
+            .Select(b => new PurchaseBatchSummary
+            {
+                Id        = b.Id,
+                BatchName = b.BatchName,
+                StartDate = b.StartDate,
+                EndDate   = b.EndDate,
+                Total     = b.PurchaseDetails.Sum(d => d.TotalValue),
+            })
+            .ToListAsync();
+
+        await Task.WhenAll(countTask, itemsTask);
+
+        return (itemsTask.Result, countTask.Result);
+    }
+
     public async Task<PurchaseBatchResponse?> GetByIdAsync(int id)
     {
         var batch = await _context.PurchaseBatches

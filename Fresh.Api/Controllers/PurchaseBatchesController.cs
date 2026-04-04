@@ -35,6 +35,20 @@ public class PurchaseBatchesController : ControllerBase
     }
 
     /// <summary>
+    /// Listado liviano (sin detalles) con total precalculado en la DB.
+    /// Ideal para selectores y dropdowns. Soporta búsqueda por nombre.
+    /// </summary>
+    [HttpGet("summaries")]
+    public async Task<IActionResult> GetSummaries(
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 5,
+        [FromQuery] string? search = null)
+    {
+        var (items, total) = await _batchService.GetSummariesAsync(skip, take, search);
+        return Ok(new { items, total });
+    }
+
+    /// <summary>
     /// Obtiene un lote de compra por ID con sus detalles
     /// </summary>
     [HttpGet("{id}")]

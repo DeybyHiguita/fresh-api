@@ -17,6 +17,7 @@ public class ExpenseService : IExpenseService
         var expenses = await _context.Expenses
             .Include(e => e.ExpenseType)
             .Include(e => e.User)
+            .Include(e => e.PurchaseBatch)
             .OrderByDescending(e => e.PaymentDate)
             .ToListAsync();
         return expenses.Select(MapToResponse);
@@ -27,6 +28,7 @@ public class ExpenseService : IExpenseService
         var expense = await _context.Expenses
             .Include(e => e.ExpenseType)
             .Include(e => e.User)
+            .Include(e => e.PurchaseBatch)
             .FirstOrDefaultAsync(e => e.Id == id);
         return expense == null ? null : MapToResponse(expense);
     }
@@ -41,14 +43,15 @@ public class ExpenseService : IExpenseService
 
         var expense = new Expense
         {
-            ExpenseTypeId = request.ExpenseTypeId,
-            UserId = request.UserId,
-            AmountPaid = request.AmountPaid,
-            PaymentDate = request.PaymentDate,
-            PaymentMethod = request.PaymentMethod,
-            Notes = request.Notes,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
+            ExpenseTypeId   = request.ExpenseTypeId,
+            UserId          = request.UserId,
+            AmountPaid      = request.AmountPaid,
+            PaymentDate     = request.PaymentDate,
+            PaymentMethod   = request.PaymentMethod,
+            Notes           = request.Notes,
+            PurchaseBatchId = request.PurchaseBatchId,
+            CreatedAt       = DateTimeOffset.UtcNow,
+            UpdatedAt       = DateTimeOffset.UtcNow
         };
 
         _context.Expenses.Add(expense);
@@ -57,12 +60,13 @@ public class ExpenseService : IExpenseService
         return await GetByIdAsync(expense.Id) ?? throw new Exception("Error al mapear el gasto.");
     }
 
-    // Implementación agregada para cumplir con la interfaz
+    // Implementaciï¿½n agregada para cumplir con la interfaz
     public async Task<IEnumerable<ExpenseResponse>> GetByMonthYearAsync(int month, int year)
     {
         var expenses = await _context.Expenses
             .Include(e => e.ExpenseType)
             .Include(e => e.User)
+            .Include(e => e.PurchaseBatch)
             .Where(e => e.PaymentDate.Month == month && e.PaymentDate.Year == year)
             .OrderByDescending(e => e.PaymentDate)
             .ToListAsync();
@@ -84,13 +88,14 @@ public class ExpenseService : IExpenseService
         var userExists = await _context.Users.AnyAsync(u => u.Id == request.UserId);
         if (!userExists) throw new KeyNotFoundException("El usuario seleccionado no existe.");
 
-        expense.ExpenseTypeId = request.ExpenseTypeId;
-        expense.UserId = request.UserId;
-        expense.AmountPaid = request.AmountPaid;
-        expense.PaymentDate = request.PaymentDate;
-        expense.PaymentMethod = request.PaymentMethod;
-        expense.Notes = request.Notes;
-        expense.UpdatedAt = DateTimeOffset.UtcNow;
+        expense.ExpenseTypeId   = request.ExpenseTypeId;
+        expense.UserId          = request.UserId;
+        expense.AmountPaid      = request.AmountPaid;
+        expense.PaymentDate     = request.PaymentDate;
+        expense.PaymentMethod   = request.PaymentMethod;
+        expense.Notes           = request.Notes;
+        expense.PurchaseBatchId = request.PurchaseBatchId;
+        expense.UpdatedAt       = DateTimeOffset.UtcNow;
 
         await _context.SaveChangesAsync();
 
@@ -99,15 +104,17 @@ public class ExpenseService : IExpenseService
 
     private static ExpenseResponse MapToResponse(Expense e) => new()
     {
-        Id = e.Id,
-        ExpenseTypeId = e.ExpenseTypeId,
-        ExpenseTypeName = e.ExpenseType?.Name ?? "Desconocido",
-        UserId = e.UserId,
-        UserName = e.User?.Name ?? "Desconocido",
-        AmountPaid = e.AmountPaid,
-        PaymentDate = e.PaymentDate,
-        PaymentMethod = e.PaymentMethod,
-        Notes = e.Notes,
-        CreatedAt = e.CreatedAt
+        Id                = e.Id,
+        ExpenseTypeId     = e.ExpenseTypeId,
+        ExpenseTypeName   = e.ExpenseType?.Name ?? "Desconocido",
+        UserId            = e.UserId,
+        UserName          = e.User?.Name ?? "Desconocido",
+        AmountPaid        = e.AmountPaid,
+        PaymentDate       = e.PaymentDate,
+        PaymentMethod     = e.PaymentMethod,
+        Notes             = e.Notes,
+        PurchaseBatchId   = e.PurchaseBatchId,
+        PurchaseBatchName = e.PurchaseBatch?.BatchName,
+        CreatedAt         = e.CreatedAt
     };
 }

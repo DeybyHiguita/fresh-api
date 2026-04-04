@@ -21,4 +21,7 @@ public class ExpenseRequest
     public string PaymentMethod { get; set; } = "Efectivo";
 
     public string? Notes { get; set; }
+
+    // Opcional: vincular con un lote de compra
+    public int? PurchaseBatchId { get; set; }
 }

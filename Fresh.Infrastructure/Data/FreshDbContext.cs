@@ -218,6 +218,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.PaymentDate).HasColumnName("payment_date").IsRequired();
             entity.Property(e => e.PaymentMethod).HasColumnName("payment_method").HasMaxLength(50).HasDefaultValue("Efectivo");
             entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.PurchaseBatchId).HasColumnName("purchase_batch_id");
 
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
@@ -236,6 +237,11 @@ public class FreshDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.PurchaseBatch)
+                  .WithMany()
+                  .HasForeignKey(e => e.PurchaseBatchId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<User>(entity =>
