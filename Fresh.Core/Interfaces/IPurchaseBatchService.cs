@@ -15,4 +15,10 @@ public interface IPurchaseBatchService
     Task<PurchaseDetailResponse> AddDetailAsync(int batchId, PurchaseDetailRequest request);
     Task<PurchaseDetailResponse?> UpdateDetailAsync(int batchId, int detailId, PurchaseDetailRequest request);
     Task<bool> RemoveDetailAsync(int batchId, int detailId);
+
+    // Actualización masiva de precios
+    Task BatchUpdateDetailsAsync(List<BatchUpdateItem> updates);
+
+    // Historial de precios de un producto
+    Task<IEnumerable<ProductPriceHistoryResponse>> GetProductPriceHistoryAsync(int productId);
 }

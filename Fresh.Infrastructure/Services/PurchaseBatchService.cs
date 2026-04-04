@@ -184,6 +184,44 @@ public class PurchaseBatchService : IPurchaseBatchService
         return true;
     }
 
+    public async Task BatchUpdateDetailsAsync(List<BatchUpdateItem> updates)
+    {
+        var ids = updates.Select(u => u.Id).ToList();
+        var details = await _context.PurchaseDetails
+            .Where(d => ids.Contains(d.Id))
+            .ToListAsync();
+
+        foreach (var detail in details)
+        {
+            var update = updates.First(u => u.Id == detail.Id);
+            detail.UnitPrice = update.UnitPrice;
+            detail.TotalValue = update.TotalValue;
+            detail.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<IEnumerable<ProductPriceHistoryResponse>> GetProductPriceHistoryAsync(int productId)
+    {
+        return await _context.PurchaseDetails
+            .Include(d => d.Batch)
+            .Include(d => d.Product)
+            .Where(d => d.ProductId == productId)
+            .OrderByDescending(d => d.Batch.StartDate)
+            .Select(d => new ProductPriceHistoryResponse
+            {
+                BatchId = d.BatchId,
+                BatchName = d.Batch.BatchName,
+                BatchDate = d.Batch.StartDate,
+                Quantity = d.Quantity,
+                UnitPrice = d.UnitPrice,
+                TotalValue = d.TotalValue,
+                ProductUnit = d.Product.UnitMeasure
+            })
+            .ToListAsync();
+    }
+
     // ?? Helpers ??????????????????????????????????????????????????????????????
 
     private static PurchaseBatchResponse MapToResponse(PurchaseBatch batch) => new()
