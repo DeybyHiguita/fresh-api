@@ -27,6 +27,20 @@ public class PurchaseBatchService : IPurchaseBatchService
         return batches.Select(MapToResponse);
     }
 
+    public async Task<(IEnumerable<PurchaseBatchResponse> Items, int Total)> GetPagedAsync(int skip, int take)
+    {
+        var query = _context.PurchaseBatches.OrderByDescending(b => b.StartDate);
+        var total = await query.CountAsync();
+        var batches = await query
+            .Skip(skip)
+            .Take(take)
+            .Include(b => b.PurchaseDetails)
+                .ThenInclude(d => d.Product)
+            .ToListAsync();
+
+        return (batches.Select(MapToResponse), total);
+    }
+
     public async Task<PurchaseBatchResponse?> GetByIdAsync(int id)
     {
         var batch = await _context.PurchaseBatches

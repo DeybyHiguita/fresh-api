@@ -19,11 +19,17 @@ public class PurchaseBatchesController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene todos los lotes de compra con sus detalles
+    /// Obtiene lotes de compra con paginación (skip/take). Si no se pasan parámetros devuelve todos.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<PurchaseBatchResponse>>> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int? skip, [FromQuery] int? take)
     {
+        if (skip.HasValue && take.HasValue)
+        {
+            var (items, total) = await _batchService.GetPagedAsync(skip.Value, take.Value);
+            return Ok(new { items, total });
+        }
+
         var batches = await _batchService.GetAllAsync();
         return Ok(batches);
     }

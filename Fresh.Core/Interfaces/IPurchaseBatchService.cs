@@ -6,6 +6,7 @@ namespace Fresh.Core.Interfaces;
 public interface IPurchaseBatchService
 {
     Task<IEnumerable<PurchaseBatchResponse>> GetAllAsync();
+    Task<(IEnumerable<PurchaseBatchResponse> Items, int Total)> GetPagedAsync(int skip, int take);
     Task<PurchaseBatchResponse?> GetByIdAsync(int id);
     Task<PurchaseBatchResponse> CreateAsync(PurchaseBatchRequest request);
     Task<PurchaseBatchResponse?> UpdateAsync(int id, PurchaseBatchRequest request);
