@@ -48,10 +48,9 @@ public class PurchaseBatchService : IPurchaseBatchService
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(b => EF.Functions.ILike(b.BatchName, $"%{search.Trim()}%"));
 
-        // Count and list run in parallel — one round-trip each, zero serialization
-        var countTask = query.CountAsync();
+        var total = await query.CountAsync();
 
-        var itemsTask = query
+        var items = await query
             .OrderByDescending(b => b.StartDate)
             .Skip(skip)
             .Take(take)
@@ -65,9 +64,7 @@ public class PurchaseBatchService : IPurchaseBatchService
             })
             .ToListAsync();
 
-        await Task.WhenAll(countTask, itemsTask);
-
-        return (itemsTask.Result, countTask.Result);
+        return (items, total);
     }
 
     public async Task<PurchaseBatchResponse?> GetByIdAsync(int id)
