@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Fresh.Core.DTOs.MenuItem
 {
@@ -15,5 +16,6 @@ namespace Fresh.Core.DTOs.MenuItem
         public int SortOrder { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public List<MenuItemVariantResponse> Variants { get; set; } = [];
     }
 }

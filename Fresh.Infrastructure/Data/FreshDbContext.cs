@@ -22,6 +22,7 @@ public class FreshDbContext : DbContext
     public DbSet<BreakTime> BreakTimes => Set<BreakTime>();
     public DbSet<DailyWorkedHours> DailyWorkedHours => Set<DailyWorkedHours>();
     public DbSet<MenuItem> MenuItems { get; set; }
+    public DbSet<MenuItemVariant> MenuItemVariants => Set<MenuItemVariant>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
@@ -691,6 +692,26 @@ public class FreshDbContext : DbContext
                   .HasForeignKey(e => e.SessionId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => e.SessionId).HasDatabaseName("ix_user_actions_session_id");
+        });
+
+        modelBuilder.Entity<MenuItemVariant>(entity =>
+        {
+            entity.ToTable("menu_item_variants");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.MenuItemId).HasColumnName("menu_item_id").IsRequired();
+            entity.Property(e => e.VariantName).HasColumnName("variant_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.SalePrice).HasColumnName("sale_price").HasPrecision(10, 2).IsRequired();
+            entity.Property(e => e.PreparationCost).HasColumnName("preparation_cost").HasPrecision(10, 2).HasDefaultValue(0m);
+            entity.Property(e => e.IsAvailable).HasColumnName("is_available").HasDefaultValue(true);
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.MenuItemId).HasDatabaseName("ix_menu_item_variants_menu_item_id");
+            entity.HasOne(e => e.MenuItem)
+                  .WithMany(m => m.Variants)
+                  .HasForeignKey(e => e.MenuItemId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

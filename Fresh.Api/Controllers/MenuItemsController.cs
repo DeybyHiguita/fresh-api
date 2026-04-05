@@ -105,4 +105,32 @@ public class MenuItemsController : ControllerBase
         await _menuItemService.ReorderAsync(request.Items);
         return NoContent();
     }
+
+    // ── Variants ────────────────────────────────────────────────
+
+    [Authorize]
+    [HttpPost("{id}/variants")]
+    public async Task<ActionResult<MenuItemVariantResponse>> AddVariant(int id, [FromBody] MenuItemVariantRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var variant = await _menuItemService.AddVariantAsync(id, request);
+        return Ok(variant);
+    }
+
+    [Authorize]
+    [HttpPut("{id}/variants/{variantId}")]
+    public async Task<ActionResult<MenuItemVariantResponse>> UpdateVariant(int id, int variantId, [FromBody] MenuItemVariantRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var variant = await _menuItemService.UpdateVariantAsync(id, variantId, request);
+        return variant == null ? NotFound() : Ok(variant);
+    }
+
+    [Authorize]
+    [HttpDelete("{id}/variants/{variantId}")]
+    public async Task<IActionResult> DeleteVariant(int id, int variantId)
+    {
+        var result = await _menuItemService.DeleteVariantAsync(id, variantId);
+        return result ? NoContent() : NotFound();
+    }
 }
