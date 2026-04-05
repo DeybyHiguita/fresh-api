@@ -7,7 +7,7 @@ public interface IPurchaseBatchService
 {
     Task<IEnumerable<PurchaseBatchResponse>> GetAllAsync();
     Task<(IEnumerable<PurchaseBatchResponse> Items, int Total)> GetPagedAsync(int skip, int take);
-    Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search);
+    Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search, int? keepExpenseId = null);
     Task<PurchaseBatchResponse?> GetByIdAsync(int id);
     Task<PurchaseBatchResponse> CreateAsync(PurchaseBatchRequest request);
     Task<PurchaseBatchResponse?> UpdateAsync(int id, PurchaseBatchRequest request);

@@ -41,12 +41,21 @@ public class PurchaseBatchService : IPurchaseBatchService
         return (batches.Select(MapToResponse), total);
     }
 
-    public async Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search)
+    public async Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search, int? keepExpenseId = null)
     {
         var query = _context.PurchaseBatches.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(b => EF.Functions.ILike(b.BatchName, $"%{search.Trim()}%"));
+
+        // Excluye lotes que ya están vinculados a un gasto,
+        // pero mantiene el lote del gasto que se está editando (keepExpenseId).
+        query = query.Where(b =>
+            !_context.Expenses.Any(e =>
+                e.PurchaseBatchId == b.Id &&
+                (keepExpenseId == null || e.Id != keepExpenseId)
+            )
+        );
 
         var total = await query.CountAsync();
 

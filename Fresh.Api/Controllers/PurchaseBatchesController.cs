@@ -42,9 +42,10 @@ public class PurchaseBatchesController : ControllerBase
     public async Task<IActionResult> GetSummaries(
         [FromQuery] int skip = 0,
         [FromQuery] int take = 5,
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null,
+        [FromQuery] int? keepExpenseId = null)
     {
-        var (items, total) = await _batchService.GetSummariesAsync(skip, take, search);
+        var (items, total) = await _batchService.GetSummariesAsync(skip, take, search, keepExpenseId);
         return Ok(new { items, total });
     }
 

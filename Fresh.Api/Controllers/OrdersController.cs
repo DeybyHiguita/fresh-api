@@ -55,14 +55,14 @@ public class OrdersController : ControllerBase
     // Endpoint de cierre de estado, como indica tu guía con HttpPatch
     [Authorize]
     [HttpPatch("{id}/status")]
-    public async Task<ActionResult<OrderResponse>> UpdateStatus(int id, [FromBody] string newStatus)
+    public async Task<ActionResult<OrderResponse>> UpdateStatus(int id, [FromBody] UpdateStatusRequest request)
     {
-        if (string.IsNullOrWhiteSpace(newStatus))
+        if (string.IsNullOrWhiteSpace(request.Status))
             return BadRequest(new { message = "El estado no puede estar vacío" });
 
         try
         {
-            var order = await _orderService.UpdateStatusAsync(id, newStatus);
+            var order = await _orderService.UpdateStatusAsync(id, request.Status, request.Notes);
             return Ok(order);
         }
         catch (KeyNotFoundException ex)

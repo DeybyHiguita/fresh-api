@@ -124,7 +124,7 @@ public class OrderService : IOrderService
         return await GetByIdAsync(order.Id) ?? throw new Exception("Error al recuperar la orden creada.");
     }
 
-    public async Task<OrderResponse?> UpdateStatusAsync(int id, string newStatus)
+    public async Task<OrderResponse?> UpdateStatusAsync(int id, string newStatus, string? notes = null)
     {
         var order = await _context.Orders
             .Include(o => o.Customer)
@@ -147,6 +147,8 @@ public class OrderService : IOrderService
 
         order.Status = newStatus;
         order.UpdatedAt = DateTimeOffset.UtcNow;
+        if (newStatus == "Cancelado" && !string.IsNullOrWhiteSpace(notes))
+            order.Notes = notes;
         _context.Orders.Update(order);
 
         // Descontar crédito cuando la orden es entregada
