@@ -54,7 +54,8 @@ public class OrderService : IOrderService
 
         // Calcular subtotales
         decimal subtotal = request.Items.Sum(i => i.Quantity * i.UnitPrice);
-        decimal total = subtotal - request.Discount;
+        decimal surcharge = request.OrderType == "Delivery" ? request.DeliverySurcharge : 0m;
+        decimal total = subtotal + surcharge - request.Discount;
         if (total < 0) throw new InvalidOperationException("El descuento no puede ser mayor al subtotal.");
 
         // Validar cliente registrado y crédito si aplica

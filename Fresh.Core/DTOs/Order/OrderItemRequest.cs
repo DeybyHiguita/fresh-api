@@ -33,6 +33,10 @@ public class OrderRequest
     [Range(0, double.MaxValue)]
     public decimal Discount { get; set; }
 
+    /// <summary>Recargo por domicilio (0 si no aplica).</summary>
+    [Range(0, double.MaxValue)]
+    public decimal DeliverySurcharge { get; set; } = 0;
+
     [Required]
     [MaxLength(50)]
     public string OrderType { get; set; } = "Local";
