@@ -74,4 +74,26 @@ public class OrdersController : ControllerBase
             return Conflict(new { message = ex.Message });
         }
     }
+
+    [Authorize]
+    [HttpPatch("{id}/payment-method")]
+    public async Task<ActionResult<OrderResponse>> UpdatePaymentMethod(int id, [FromBody] UpdatePaymentMethodRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PaymentMethod))
+            return BadRequest(new { message = "El medio de pago no puede estar vacío" });
+
+        try
+        {
+            var order = await _orderService.UpdatePaymentMethodAsync(id, request.PaymentMethod);
+            return Ok(order);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
 }

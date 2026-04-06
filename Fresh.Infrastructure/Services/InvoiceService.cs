@@ -88,6 +88,28 @@ public class InvoiceService : IInvoiceService
         return MapToResponse(invoice);
     }
 
+    public async Task<InvoiceResponse?> UpdatePaymentMethodAsync(int id, string paymentMethod, decimal cashTendered)
+    {
+        var invoice = await _context.Invoices.FindAsync(id);
+        if (invoice == null) return null;
+
+        decimal changeAmount = 0m;
+        if (paymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase))
+        {
+            if (cashTendered < invoice.TotalAmount)
+                throw new InvalidOperationException("El efectivo recibido no puede ser menor al total de la factura.");
+            changeAmount = cashTendered - invoice.TotalAmount;
+        }
+
+        invoice.PaymentMethod = paymentMethod;
+        invoice.CashTendered  = paymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase) ? cashTendered : 0m;
+        invoice.ChangeAmount  = changeAmount;
+        _context.Invoices.Update(invoice);
+        await _context.SaveChangesAsync();
+
+        return MapToResponse(invoice);
+    }
+
     private static InvoiceResponse MapToResponse(Invoice i) => new()
     {
         Id = i.Id,

@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Fresh.Api.Controllers;
 
+public record UpdateInvoicePaymentRequest(string PaymentMethod, decimal CashTendered = 0);
+
 [ApiController]
 [Route("api/[controller]")]
 public class InvoicesController : ControllerBase
@@ -56,6 +58,25 @@ public class InvoicesController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    [HttpPatch("{id}/payment-method")]
+    [Authorize]
+    public async Task<ActionResult<InvoiceResponse>> UpdatePaymentMethod(int id, [FromBody] UpdateInvoicePaymentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PaymentMethod))
+            return BadRequest(new { message = "El medio de pago no puede estar vacío" });
+
+        try
+        {
+            var invoice = await _invoiceService.UpdatePaymentMethodAsync(id, request.PaymentMethod, request.CashTendered);
+            if (invoice == null) return NotFound(new { message = $"Factura {id} no encontrada." });
+            return Ok(invoice);
         }
         catch (InvalidOperationException ex)
         {

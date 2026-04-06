@@ -8,4 +8,5 @@ public interface IOrderService
     Task<OrderResponse?> GetByIdAsync(int id);
     Task<OrderResponse> CreateAsync(OrderRequest request);
     Task<OrderResponse?> UpdateStatusAsync(int id, string newStatus, string? notes = null);
+    Task<OrderResponse?> UpdatePaymentMethodAsync(int id, string paymentMethod);
 }

@@ -140,7 +140,7 @@ public class OrderService : IOrderService
         if (currentStatus == "Cancelado")
             throw new InvalidOperationException("La orden ya está cancelada y no puede cambiar de estado.");
 
-        if (currentStatus == "Entregado")
+        if (currentStatus == "Entregado" && newStatus != "Cancelado")
             throw new InvalidOperationException("La orden ya fue entregada y no puede cambiar de estado.");
 
         if (currentStatus == "Pendiente" && newStatus != "Cancelado" && newStatus != "Entregado")
@@ -182,6 +182,22 @@ public class OrderService : IOrderService
             }
         }
 
+        await _context.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
+    public async Task<OrderResponse?> UpdatePaymentMethodAsync(int id, string paymentMethod)
+    {
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == id);
+        if (order == null) throw new KeyNotFoundException($"Orden {id} no encontrada.");
+
+        if (order.Status == "Cancelado")
+            throw new InvalidOperationException("No se puede cambiar el medio de pago de una orden cancelada.");
+
+        order.PaymentMethod = paymentMethod;
+        order.UpdatedAt = DateTimeOffset.UtcNow;
+        _context.Orders.Update(order);
         await _context.SaveChangesAsync();
 
         return await GetByIdAsync(id);

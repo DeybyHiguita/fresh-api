@@ -8,4 +8,5 @@ public interface IInvoiceService
     Task<InvoiceResponse?> GetByIdAsync(int id);
     Task<InvoiceResponse?> GetByOrderIdAsync(int orderId);
     Task<InvoiceResponse> CreateAsync(InvoiceRequest request);
+    Task<InvoiceResponse?> UpdatePaymentMethodAsync(int id, string paymentMethod, decimal cashTendered);
 }
