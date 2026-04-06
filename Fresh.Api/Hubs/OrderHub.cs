@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Fresh.Api.Hubs;
@@ -6,11 +7,11 @@ namespace Fresh.Api.Hubs;
 /// Hub para notificaciones de órdenes en tiempo real.
 /// Los administradores se suscriben al grupo "admins" al conectarse.
 /// </summary>
+[Authorize]
 public class OrderHub : Hub
 {
     public override async Task OnConnectedAsync()
     {
-        // El rol viene en los claims del JWT (ya validado por el middleware)
         var role = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
                 ?? Context.User?.FindFirst("role")?.Value
                 ?? string.Empty;
