@@ -200,5 +200,6 @@ app.UseAuthorization();
 app.UseMiddleware<ApiLoggingMiddleware>();
 app.MapControllers();
 app.MapHub<PresenceHub>("/hubs/presence");
+app.MapHub<OrderHub>("/hubs/orders");
 
 app.Run();

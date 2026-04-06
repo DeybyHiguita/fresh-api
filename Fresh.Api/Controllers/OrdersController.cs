@@ -1,7 +1,9 @@
-﻿using Fresh.Core.DTOs.Order;
+﻿using Fresh.Api.Hubs;
+using Fresh.Core.DTOs.Order;
 using Fresh.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Fresh.Api.Controllers;
 
@@ -10,10 +12,12 @@ namespace Fresh.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IHubContext<OrderHub> _orderHub;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(IOrderService orderService, IHubContext<OrderHub> orderHub)
     {
         _orderService = orderService;
+        _orderHub    = orderHub;
     }
 
     [HttpGet]
@@ -40,6 +44,10 @@ public class OrdersController : ControllerBase
         try
         {
             var order = await _orderService.CreateAsync(request);
+
+            // Notificar a todos los administradores conectados
+            await _orderHub.Clients.Group("admins").SendAsync("NewOrder", order);
+
             return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
         }
         catch (KeyNotFoundException ex)
