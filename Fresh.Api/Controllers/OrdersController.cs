@@ -71,6 +71,7 @@ public class OrdersController : ControllerBase
         try
         {
             var order = await _orderService.UpdateStatusAsync(id, request.Status, request.Notes);
+            await _orderHub.Clients.Group("admins").SendAsync("OrderUpdated", order);
             return Ok(order);
         }
         catch (KeyNotFoundException ex)
