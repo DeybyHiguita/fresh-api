@@ -40,6 +40,8 @@ public class FreshDbContext : DbContext
     public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<UserAction> UserActions => Set<UserAction>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<WhatsappContact> WhatsappContacts => Set<WhatsappContact>();
+    public DbSet<WhatsappMessage> WhatsappMessages => Set<WhatsappMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,6 +56,37 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(500);
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
         });
+
+        modelBuilder.Entity<WhatsappContact>(entity =>
+        {
+            entity.ToTable("whatsapp_contacts");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.WaId).HasColumnName("wa_id").HasMaxLength(20).IsRequired();
+            entity.HasIndex(e => e.WaId).IsUnique();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(150);
+            entity.Property(e => e.LastMessageAt).HasColumnName("last_message_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UnreadCount).HasColumnName("unread_count").HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<WhatsappMessage>(entity =>
+        {
+            entity.ToTable("whatsapp_messages");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.ContactId).HasColumnName("contact_id").IsRequired();
+            entity.Property(e => e.Direction).HasColumnName("direction").HasMaxLength(3).IsRequired();
+            entity.Property(e => e.Body).HasColumnName("body").IsRequired();
+            entity.Property(e => e.WaMessageId).HasColumnName("wa_message_id").HasMaxLength(200);
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("sent");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasOne(e => e.Contact)
+                  .WithMany(c => c.Messages)
+                  .HasForeignKey(e => e.ContactId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Invoice>(entity =>
 {
     entity.ToTable("invoices");

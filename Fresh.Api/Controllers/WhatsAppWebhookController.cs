@@ -49,10 +49,10 @@ public class WhatsAppWebhookController : ControllerBase
 
     // ── Recepción de eventos ──────────────────────────────────────────────
     [HttpPost]
-    public async Task<IActionResult> Receive([FromBody] JsonElement payload)
+    public IActionResult Receive([FromBody] JsonElement payload, [FromServices] IServiceProvider services)
     {
         // Meta espera siempre 200 OK inmediato; procesamos en background
-        _ = Task.Run(() => _webhookService.ProcessAsync(payload));
+        _ = Task.Run(() => _webhookService.ProcessAsync(payload, services));
         return Ok();
     }
 }
