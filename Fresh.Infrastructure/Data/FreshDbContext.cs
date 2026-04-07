@@ -42,6 +42,8 @@ public class FreshDbContext : DbContext
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<WhatsappContact> WhatsappContacts => Set<WhatsappContact>();
     public DbSet<WhatsappMessage> WhatsappMessages => Set<WhatsappMessage>();
+    public DbSet<Safe> Safes => Set<Safe>();
+    public DbSet<SafeTransaction> SafeTransactions => Set<SafeTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -574,6 +576,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("Completada");
 
             entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.IsCreditPaid).HasColumnName("is_credit_paid").HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
@@ -659,6 +662,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.SystemCard).HasColumnName("system_card").HasPrecision(10, 2);
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Abierta");
             entity.Property(e => e.Observations).HasColumnName("observations");
+            entity.Property(e => e.AmountToSafe).HasColumnName("amount_to_safe").HasPrecision(12, 2).HasDefaultValue(0m);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             entity.HasIndex(e => e.PeriodId).HasDatabaseName("ix_cash_registers_period_id");
@@ -761,6 +765,35 @@ public class FreshDbContext : DbContext
                   .WithMany(m => m.Variants)
                   .HasForeignKey(e => e.MenuItemId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Safe>(entity =>
+        {
+            entity.ToTable("safe");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Balance).HasColumnName("balance").HasPrecision(12, 2).HasDefaultValue(0m);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<SafeTransaction>(entity =>
+        {
+            entity.ToTable("safe_transactions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Type).HasColumnName("type").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasPrecision(12, 2).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description").IsRequired();
+            entity.Property(e => e.BalanceBefore).HasColumnName("balance_before").HasPrecision(12, 2);
+            entity.Property(e => e.BalanceAfter).HasColumnName("balance_after").HasPrecision(12, 2);
+            entity.Property(e => e.CashRegisterId).HasColumnName("cash_register_id");
+            entity.Property(e => e.CreatedById).HasColumnName("created_by_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.Type).HasDatabaseName("idx_safe_transactions_type");
+            entity.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_safe_transactions_created_at");
+            entity.HasOne(e => e.CashRegister).WithMany().HasForeignKey(e => e.CashRegisterId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.CreatedBy).WithMany().HasForeignKey(e => e.CreatedById).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
         });
     }
 }

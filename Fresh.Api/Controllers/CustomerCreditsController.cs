@@ -48,4 +48,22 @@ public class CustomerCreditsController : ControllerBase
     {
         return Ok(await _service.GetTransactionsAsync(customerId));
     }
+
+    [HttpGet("customer/{customerId}/credit-orders")]
+    public async Task<ActionResult<IEnumerable<CreditOrderResponse>>> GetCreditOrders(int customerId)
+    {
+        return Ok(await _service.GetCreditOrdersAsync(customerId));
+    }
+
+    [HttpPost("{id}/pay-orders")]
+    public async Task<ActionResult<CustomerCreditResponse>> PayOrders(int id, [FromBody] PayOrdersRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            return Ok(await _service.PayOrdersAsync(id, request));
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
 }

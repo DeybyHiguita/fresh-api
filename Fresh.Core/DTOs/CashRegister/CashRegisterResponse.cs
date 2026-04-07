@@ -26,4 +26,5 @@ public class CashRegisterResponse
 
     public string Status { get; set; } = string.Empty;
     public string? Observations { get; set; }
+    public decimal AmountToSafe { get; set; } = 0;
 }

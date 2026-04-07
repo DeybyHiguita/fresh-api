@@ -17,4 +17,7 @@ public class CloseCashRegisterRequest
     public decimal ReportedCard { get; set; }
 
     public string? Observations { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal AmountToSafe { get; set; } = 0;
 }

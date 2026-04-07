@@ -173,9 +173,39 @@ public class CashRegisterService : ICashRegisterService
 
         // Caja descuadrada si diferencia de efectivo (descontando gastos) supera $1000
         decimal diff = Math.Abs(request.ReportedCash - netCashExpected);
-        register.Status = diff > 1000m ? "Descuadrada" : "Cerrada";
+        register.Status       = diff > 1000m ? "Descuadrada" : "Cerrada";
+        register.AmountToSafe = request.AmountToSafe;
 
         _context.CashRegisters.Update(register);
+
+        // Si hay monto para caja fuerte, registrar el ingreso
+        if (request.AmountToSafe > 0)
+        {
+            var safe = await _context.Safes.FirstOrDefaultAsync();
+            if (safe == null)
+            {
+                safe = new Core.Entities.Safe();
+                _context.Safes.Add(safe);
+                await _context.SaveChangesAsync();
+            }
+
+            var before     = safe.Balance;
+            safe.Balance  += request.AmountToSafe;
+            safe.UpdatedAt = DateTimeOffset.UtcNow;
+
+            var tx = new Core.Entities.SafeTransaction
+            {
+                Type            = "Ingreso",
+                Amount          = request.AmountToSafe,
+                Description     = $"Cierre de caja #{id}",
+                BalanceBefore   = before,
+                BalanceAfter    = safe.Balance,
+                CashRegisterId  = id,
+                CreatedById     = request.ClosedById,
+            };
+            _context.SafeTransactions.Add(tx);
+        }
+
         await _context.SaveChangesAsync();
 
         return await GetByIdAsync(register.Id);
@@ -200,6 +230,7 @@ public class CashRegisterService : ICashRegisterService
         SystemTransfer = c.SystemTransfer,
         SystemCard = c.SystemCard,
         Status = c.Status,
-        Observations = c.Observations
+        Observations = c.Observations,
+        AmountToSafe = c.AmountToSafe,
     };
 }
