@@ -74,7 +74,9 @@ public class WhatsappChatService
                 m.CreatedAt.ToString("o"),
                 m.MediaType,
                 m.MediaId,
-                m.MediaName
+                m.MediaName,
+                m.WaMessageId,
+                m.ReplyToWaMessageId
             ))
             .ToListAsync();
     }
@@ -95,13 +97,29 @@ public class WhatsappChatService
         string? waMessageId = null;
         var url = $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages";
 
-        var payload = new
+        object payload;
+        if (!string.IsNullOrWhiteSpace(req.ReplyToWaMessageId))
         {
-            messaging_product = "whatsapp",
-            to   = contact.WaId,
-            type = "text",
-            text = new { preview_url = false, body = req.Body }
-        };
+            payload = new
+            {
+                messaging_product = "whatsapp",
+                recipient_type    = "individual",
+                to                = contact.WaId,
+                context           = new { message_id = req.ReplyToWaMessageId },
+                type              = "text",
+                text              = new { preview_url = false, body = req.Body }
+            };
+        }
+        else
+        {
+            payload = new
+            {
+                messaging_product = "whatsapp",
+                to                = contact.WaId,
+                type              = "text",
+                text              = new { preview_url = false, body = req.Body }
+            };
+        }
 
         var json    = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8);
@@ -131,17 +149,20 @@ public class WhatsappChatService
         var msg = new WhatsappMessage
         {
             ContactId   = contact.Id,
-            Direction   = "out",
-            Body        = req.Body,
-            WaMessageId = waMessageId,
-            Status      = "sent",
-            CreatedAt   = DateTime.UtcNow,
+            Direction          = "out",
+            Body               = req.Body,
+            WaMessageId        = waMessageId,
+            ReplyToWaMessageId = req.ReplyToWaMessageId,
+            Status             = "sent",
+            CreatedAt          = DateTime.UtcNow,
         };
         _db.WhatsappMessages.Add(msg);
         contact.LastMessageAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        return new WhatsappMessageDto(msg.Id, "out", msg.Body, msg.Status, msg.CreatedAt.ToString("o"));
+        return new WhatsappMessageDto(msg.Id, "out", msg.Body, msg.Status, msg.CreatedAt.ToString("o"),
+            WaMessageId: msg.WaMessageId,
+            ReplyToWaMessageId: msg.ReplyToWaMessageId);
     }
 
     // ── Upsert contacto + guardar mensaje entrante (llamado desde webhook) ─
@@ -227,6 +248,54 @@ public class WhatsappChatService
             await client.PostAsync(url, content);
         }
         catch { /* no bloquear el flujo si falla */ }
+    }
+
+    // ── Marcar mensajes leídos desde la UI (el admin abre la conversación) ─
+
+    public async Task MarkContactMessagesReadAsync(int contactId)
+    {
+        var contact = await _db.WhatsappContacts.FindAsync(contactId)
+            ?? throw new KeyNotFoundException($"Contacto {contactId} no encontrado.");
+
+        // Obtener el último mensaje entrante no leído
+        var lastIncoming = await _db.WhatsappMessages
+            .Where(m => m.ContactId == contactId && m.Direction == "in" && !string.IsNullOrEmpty(m.WaMessageId))
+            .OrderByDescending(m => m.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        // Marcar unread = 0 en BD
+        await _db.WhatsappContacts
+            .Where(c => c.Id == contactId)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.UnreadCount, 0));
+
+        // Enviar mark-as-read a Meta (sin typing indicator — el admin solo está leyendo)
+        if (lastIncoming?.WaMessageId is not null)
+        {
+            try
+            {
+                var settings = await _appSettings.GetAsync();
+                if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+                    string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+                    return;
+
+                var url = $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages";
+                var payload = new
+                {
+                    messaging_product = "whatsapp",
+                    status            = "read",
+                    message_id        = lastIncoming.WaMessageId
+                };
+
+                var json    = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var client  = _httpClientFactory.CreateClient("WhatsApp");
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+                await client.PostAsync(url, content);
+            }
+            catch { /* no bloquear */ }
+        }
     }
 
     // ── Obtener WaId de un contacto por su ID interno ─────────────────────

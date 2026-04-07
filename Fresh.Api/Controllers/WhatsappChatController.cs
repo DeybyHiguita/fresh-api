@@ -95,6 +95,19 @@ public class WhatsappChatController : ControllerBase
         catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
     }
 
+    /// <summary>Marca los mensajes entrantes del contacto como leídos en WhatsApp (doble tick azul).</summary>
+    [HttpPost("contacts/{contactId:int}/mark-read")]
+    public async Task<IActionResult> MarkRead(int contactId)
+    {
+        try
+        {
+            await _chat.MarkContactMessagesReadAsync(contactId);
+            return Ok();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
+    }
+
     /// <summary>
     /// Proxy para descargar desde Meta sin exponer el token al frontend.
     /// GET /api/whatsapp/chat/media/{mediaId}

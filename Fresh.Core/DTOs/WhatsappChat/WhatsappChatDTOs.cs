@@ -15,14 +15,18 @@ public record WhatsappMessageDto(
     string  Body,
     string  Status,
     string  CreatedAt,
-    string? MediaType = null,
-    string? MediaId   = null,
-    string? MediaName = null
+    string? MediaType          = null,
+    string? MediaId            = null,
+    string? MediaName          = null,
+    string? WaMessageId        = null,
+    string? ReplyToWaMessageId = null,
+    string? ReplyToBody        = null
 );
 
 public record SendMessageRequest(
     int    ContactId,
-    string Body
+    string Body,
+    string? ReplyToWaMessageId = null
 );
 
 public record DeliveryPromptRequest(int ContactId);

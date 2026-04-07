@@ -85,9 +85,14 @@ public class CashRegisterService : ICashRegisterService
             .Where(i => i.PaymentMethod.Equals("Tarjeta", StringComparison.OrdinalIgnoreCase))
             .Sum(i => i.TotalAmount);
 
-        // Gastos ingresados al sistema durante el turno (mismo rango que las facturas)
+        // Gastos del turno: se filtra por PaymentDate (fecha local Colombia UTC-5) para evitar
+        // problemas de zona horaria con CreatedAt UTC, y para respetar la fecha que el usuario registró.
+        var colombiaOffset = TimeSpan.FromHours(-5);
+        var openDateLocal  = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
+        var closeDateLocal = DateOnly.FromDateTime(until.ToOffset(colombiaOffset).DateTime);
+
         var expenses = await _context.Expenses
-            .Where(e => e.CreatedAt >= register.OpeningTime && e.CreatedAt <= until)
+            .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal)
             .ToListAsync();
 
         decimal expCash     = expenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
@@ -154,8 +159,13 @@ public class CashRegisterService : ICashRegisterService
         register.UpdatedAt       = DateTimeOffset.UtcNow;
 
         // Descuento de gastos del turno para determinar el efectivo esperado real
+        // Se filtra por PaymentDate con fecha local Colombia (UTC-5)
+        var colombiaOffset   = TimeSpan.FromHours(-5);
+        var openDateLocal    = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
+        var closeDateLocal   = DateOnly.FromDateTime(closingTime.ToOffset(colombiaOffset).DateTime);
+
         var expensesCash = await _context.Expenses
-            .Where(e => e.CreatedAt >= register.OpeningTime && e.CreatedAt <= closingTime
+            .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal
                      && e.PaymentMethod == "Efectivo")
             .SumAsync(e => e.AmountPaid);
 
