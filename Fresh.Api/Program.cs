@@ -1,5 +1,6 @@
 using Fresh.Api.Hubs;
 using Fresh.Api.Middleware;
+using Fresh.Api.Services;
 using Fresh.Core.Interfaces;
 using Fresh.Infrastructure.Data;
 using Fresh.Infrastructure.Services;
@@ -40,6 +41,7 @@ builder.Services.AddScoped<IAppSettingsService, AppSettingsService>();
 builder.Services.AddScoped<WhatsAppNotificationService>();
 builder.Services.AddScoped<WhatsAppWebhookService>();
 builder.Services.AddScoped<WhatsappChatService>();
+builder.Services.AddScoped<IWhatsappHubNotifier, WhatsappHubNotifier>();
 builder.Services.AddHttpClient("WhatsApp");
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();

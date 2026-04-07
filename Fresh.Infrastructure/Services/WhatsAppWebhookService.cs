@@ -1,3 +1,4 @@
+using Fresh.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -57,16 +58,14 @@ public class WhatsAppWebhookService
 
                             using var scope  = services.CreateScope();
                             var chatService  = scope.ServiceProvider.GetRequiredService<WhatsappChatService>();
-                            var hubContext   = scope.ServiceProvider
-                                .GetRequiredService<Microsoft.AspNetCore.SignalR.IHubContext<
-                                    Fresh.Api.Hubs.WhatsappHub>>();
+                            var notifier     = scope.ServiceProvider.GetRequiredService<IWhatsappHubNotifier>();
 
                             var (contact, message) = await chatService.SaveIncomingAsync(
                                 from, contactName, body, waMsgId);
 
                             if (message is not null)
                             {
-                                await hubContext.Clients.Group("admins").SendAsync("NewWhatsappMessage", new
+                                await notifier.NotifyNewMessageAsync(new
                                 {
                                     contactId   = contact.Id,
                                     waId        = contact.WaId,
