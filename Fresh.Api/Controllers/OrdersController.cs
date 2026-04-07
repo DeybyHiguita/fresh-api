@@ -1,6 +1,7 @@
 ﻿using Fresh.Api.Hubs;
 using Fresh.Core.DTOs.Order;
 using Fresh.Core.Interfaces;
+using Fresh.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -13,11 +14,16 @@ public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly IHubContext<OrderHub> _orderHub;
+    private readonly WhatsAppNotificationService _whatsApp;
 
-    public OrdersController(IOrderService orderService, IHubContext<OrderHub> orderHub)
+    public OrdersController(
+        IOrderService orderService,
+        IHubContext<OrderHub> orderHub,
+        WhatsAppNotificationService whatsApp)
     {
         _orderService = orderService;
-        _orderHub    = orderHub;
+        _orderHub     = orderHub;
+        _whatsApp     = whatsApp;
     }
 
     [HttpGet]
@@ -48,6 +54,9 @@ public class OrdersController : ControllerBase
             // Notificar a todos los administradores conectados
             await _orderHub.Clients.Group("admins").SendAsync("NewOrder", order);
 
+            // WhatsApp
+            _ = _whatsApp.NotifyNewOrderAsync(order);
+
             return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
         }
         catch (KeyNotFoundException ex)
@@ -72,6 +81,10 @@ public class OrdersController : ControllerBase
         {
             var order = await _orderService.UpdateStatusAsync(id, request.Status, request.Notes);
             await _orderHub.Clients.Group("admins").SendAsync("OrderUpdated", order);
+
+            // WhatsApp
+            _ = _whatsApp.NotifyStatusChangedAsync(order);
+
             return Ok(order);
         }
         catch (KeyNotFoundException ex)

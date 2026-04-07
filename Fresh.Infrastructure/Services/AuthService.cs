@@ -15,11 +15,13 @@ public class AuthService : IAuthService
 {
     private readonly FreshDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly IAppSettingsService _appSettings;
 
-    public AuthService(FreshDbContext context, IConfiguration configuration)
+    public AuthService(FreshDbContext context, IConfiguration configuration, IAppSettingsService appSettings)
     {
         _context = context;
         _configuration = configuration;
+        _appSettings = appSettings;
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
@@ -39,7 +41,8 @@ public class AuthService : IAuthService
             Name = user.Name,
             Email = user.Email,
             Role = user.Role,
-            Token = GenerateToken(user)
+            Token = GenerateToken(user),
+            Settings = await _appSettings.GetAsync()
         };
     }
 

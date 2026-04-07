@@ -39,8 +39,21 @@ public class FreshDbContext : DbContext
     public DbSet<AppPage> AppPages => Set<AppPage>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<UserAction> UserActions => Set<UserAction>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AppSetting>(entity =>
+        {
+            entity.ToTable("app_settings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Key).HasColumnName("key").HasMaxLength(100).IsRequired();
+            entity.HasIndex(e => e.Key).IsUnique();
+            entity.Property(e => e.Value).HasColumnName("value").HasMaxLength(500);
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(500);
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+        });
         modelBuilder.Entity<Invoice>(entity =>
 {
     entity.ToTable("invoices");
