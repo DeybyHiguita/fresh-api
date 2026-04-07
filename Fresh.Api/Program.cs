@@ -39,6 +39,7 @@ builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 builder.Services.AddScoped<IAppSettingsService, AppSettingsService>();
 builder.Services.AddScoped<WhatsAppNotificationService>();
 builder.Services.AddScoped<WhatsAppWebhookService>();
+builder.Services.AddScoped<WhatsappChatService>();
 builder.Services.AddHttpClient("WhatsApp");
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
@@ -216,5 +217,6 @@ app.UseMiddleware<ApiLoggingMiddleware>();
 app.MapControllers();
 app.MapHub<PresenceHub>("/hubs/presence");
 app.MapHub<OrderHub>("/hubs/orders");
+app.MapHub<WhatsappHub>("/hubs/whatsapp");
 
 app.Run();
