@@ -26,7 +26,10 @@ public class WhatsappChatController : ControllerBase
     /// <summary>Mensajes de un contacto. Marca mensajes como leídos.</summary>
     [HttpGet("contacts/{contactId:int}/messages")]
     public async Task<ActionResult<List<WhatsappMessageDto>>> GetMessages(int contactId)
-        => Ok(await _chat.GetMessagesAsync(contactId));
+    {
+        try { return Ok(await _chat.GetMessagesAsync(contactId)); }
+        catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+    }
 
     /// <summary>Envía un mensaje de texto al contacto.</summary>
     [HttpPost("send")]
@@ -39,6 +42,10 @@ public class WhatsappChatController : ControllerBase
         }
         catch (KeyNotFoundException ex)      { return NotFound(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = $"Error interno: {ex.Message}" });
+        }
     }
 
     /// <summary>Envía una imagen, documento o audio al contacto.</summary>
