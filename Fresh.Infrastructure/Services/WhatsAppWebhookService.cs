@@ -110,9 +110,28 @@ public class WhatsAppWebhookService
                                     }
                                     break;
 
+                                case "interactive":
+                                    // El cuerpo se llenará abajo al detectar el botón de domicilio
+                                    body = "";
+                                    break;
+
                                 default:
                                     _logger.LogInformation("[WhatsApp] Tipo de mensaje no soportado: {Type}", msgType);
                                     continue;
+                            }
+
+                            // ── Detectar respuesta al botón de domicilio ──
+                            bool isDeliveryButtonReply = false;
+                            if (msgType == "interactive" &&
+                                msg.TryGetProperty("interactive", out var interObj) &&
+                                interObj.TryGetProperty("type", out var interType) &&
+                                interType.GetString() == "button_reply" &&
+                                interObj.TryGetProperty("button_reply", out var btnReply) &&
+                                btnReply.TryGetProperty("id", out var btnId) &&
+                                btnId.GetString() == WhatsappChatService.GetDeliveryButtonId())
+                            {
+                                isDeliveryButtonReply = true;
+                                body = "🛵 " + (btnReply.TryGetProperty("title", out var btnTitle) ? btnTitle.GetString() ?? "" : "Enviar mis datos");
                             }
 
                             using var scope  = _scopeFactory.CreateScope();
@@ -138,6 +157,17 @@ public class WhatsAppWebhookService
                                     mediaName   = message.MediaName,
                                     createdAt   = message.CreatedAt.ToString("o"),
                                 });
+
+                                // Auto-respuesta: enviar formato de domicilio si el cliente presionó el botón
+                                if (isDeliveryButtonReply)
+                                {
+                                    _ = Task.Run(async () =>
+                                    {
+                                        using var autoScope = _scopeFactory.CreateScope();
+                                        var svc = autoScope.ServiceProvider.GetRequiredService<WhatsappChatService>();
+                                        await svc.SendDeliveryFormatAsync(from);
+                                    });
+                                }
                             }
 
                             _logger.LogInformation("[WhatsApp] Mensaje {Type} de {From}", msgType, from);

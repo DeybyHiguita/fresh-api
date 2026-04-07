@@ -67,6 +67,20 @@ public class WhatsappChatController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    /// <summary>Envía prompt interactivo con botón para solicitar datos de domicilio.</summary>
+    [HttpPost("send-delivery-prompt")]
+    public async Task<ActionResult<WhatsappMessageDto>> SendDeliveryPrompt([FromBody] DeliveryPromptRequest req)
+    {
+        try
+        {
+            var msg = await _chat.SendDeliveryPromptAsync(req.ContactId);
+            return Ok(msg);
+        }
+        catch (KeyNotFoundException ex)      { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex)                 { return StatusCode(500, new { message = ex.Message }); }
+    }
+
     /// <summary>
     /// Proxy para descargar desde Meta sin exponer el token al frontend.
     /// GET /api/whatsapp/chat/media/{mediaId}

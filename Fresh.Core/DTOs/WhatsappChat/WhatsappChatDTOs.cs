@@ -24,3 +24,5 @@ public record SendMessageRequest(
     int    ContactId,
     string Body
 );
+
+public record DeliveryPromptRequest(int ContactId);

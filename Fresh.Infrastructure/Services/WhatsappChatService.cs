@@ -353,4 +353,143 @@ public class WhatsappChatService
         return new WhatsappMessageDto(msg.Id, "out", msg.Body, msg.Status,
             msg.CreatedAt.ToString("o"), msg.MediaType, msg.MediaId, msg.MediaName);
     }
+
+    // ── Enviar prompt interactivo de domicilio ────────────────────────────
+    // Envía un mensaje con botón de respuesta rápida para solicitar datos.
+    // Requiere que el cliente haya escrito dentro de las últimas 24 h.
+
+    private const string DeliveryButtonId = "SOLICITAR_DOMICILIO";
+
+    public async Task<WhatsappMessageDto> SendDeliveryPromptAsync(int contactId)
+    {
+        var contact = await _db.WhatsappContacts.FindAsync(contactId)
+            ?? throw new KeyNotFoundException($"Contacto {contactId} no encontrado.");
+
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+            string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+            throw new InvalidOperationException("WhatsApp no está configurado correctamente.");
+
+        var token      = settings.WhatsappAccessToken.Trim();
+        var phoneNumId = settings.WhatsappPhoneNumberId.Trim();
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        // Mensaje interactivo con botón de respuesta rápida
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            to                = contact.WaId,
+            type              = "interactive",
+            interactive       = new
+            {
+                type = "button",
+                body = new
+                {
+                    text = "¡Hola! 👋 Para procesar tu domicilio en *Fresh*, presiona el botón de abajo y te enviaré el formato para completar. 🛵"
+                },
+                action = new
+                {
+                    buttons = new[]
+                    {
+                        new
+                        {
+                            type  = "reply",
+                            reply = new { id = DeliveryButtonId, title = "Enviar mis datos 🛵" }
+                        }
+                    }
+                }
+            }
+        };
+
+        var json    = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        string? waMessageId = null;
+        var res = await client.PostAsync(
+            $"https://graph.facebook.com/v25.0/{phoneNumId}/messages", content);
+
+        if (res.IsSuccessStatusCode)
+        {
+            var body   = await res.Content.ReadAsStringAsync();
+            var parsed = JsonSerializer.Deserialize<JsonElement>(body);
+            if (parsed.TryGetProperty("messages", out var msgs) && msgs.GetArrayLength() > 0)
+                waMessageId = msgs[0].TryGetProperty("id", out var wid) ? wid.GetString() : null;
+        }
+
+        var bodyText = "🛵 Solicité datos de domicilio";
+        var msg = new WhatsappMessage
+        {
+            ContactId   = contact.Id,
+            Direction   = "out",
+            Body        = bodyText,
+            WaMessageId = waMessageId,
+            Status      = "sent",
+            CreatedAt   = DateTime.UtcNow,
+        };
+        _db.WhatsappMessages.Add(msg);
+        contact.LastMessageAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return new WhatsappMessageDto(msg.Id, "out", bodyText, "sent", msg.CreatedAt.ToString("o"));
+    }
+
+    // ── Auto-respuesta cuando el cliente presiona el botón ─────────────────
+    // Envía el formato de datos directamente al cliente (llamado desde webhook).
+
+    public async Task SendDeliveryFormatAsync(string waId)
+    {
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+            string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+            return;
+
+        var token      = settings.WhatsappAccessToken.Trim();
+        var phoneNumId = settings.WhatsappPhoneNumberId.Trim();
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        const string formato =
+            "📋 *Perfecto, completa estos datos y envíalos:*\n\n" +
+            "🏠 *Dirección:* \n" +
+            "🏘️ *Barrio:* \n" +
+            "👤 *Nombre:* \n" +
+            "📞 *Teléfono:* \n" +
+            "🛒 *Pedido:* \n" +
+            "💰 *Pago:* Efectivo / Nequi / Transferencia";
+
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            to                = waId,
+            type              = "text",
+            text              = new { preview_url = false, body = formato }
+        };
+
+        var json    = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        await client.PostAsync($"https://graph.facebook.com/v25.0/{phoneNumId}/messages", content);
+
+        // Guardar el mensaje enviado en BD
+        var contact = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
+        if (contact is not null)
+        {
+            _db.WhatsappMessages.Add(new WhatsappMessage
+            {
+                ContactId = contact.Id,
+                Direction = "out",
+                Body      = formato,
+                Status    = "sent",
+                CreatedAt = DateTime.UtcNow,
+            });
+            contact.LastMessageAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+    }
+
+    public static string GetDeliveryButtonId() => DeliveryButtonId;
 }
