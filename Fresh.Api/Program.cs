@@ -36,6 +36,10 @@ builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();
 builder.Services.AddScoped<IAppPageService, AppPageService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+builder.Services.AddScoped<IAppSettingsService, AppSettingsService>();
+builder.Services.AddScoped<WhatsAppNotificationService>();
+builder.Services.AddScoped<WhatsAppWebhookService>();
+builder.Services.AddHttpClient("WhatsApp");
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IUserSessionService, UserSessionService>();
@@ -182,6 +186,17 @@ using (var scope = app.Services.CreateScope())
                 updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS ix_recipe_details_recipe_id ON recipe_details(recipe_id);
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id          SERIAL PRIMARY KEY,
+                key         VARCHAR(100) NOT NULL UNIQUE,
+                value       VARCHAR(500) NOT NULL DEFAULT '',
+                description VARCHAR(500) NOT NULL DEFAULT '',
+                updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+            );
+            INSERT INTO app_settings (key, value, description)
+            VALUES ('whatsapp_notifications_enabled', 'false', 'Enviar notificación por WhatsApp al administrador cuando se crea una orden')
+            ON CONFLICT (key) DO NOTHING;
         ");
     }
     catch (Exception ex)
