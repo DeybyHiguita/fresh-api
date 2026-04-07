@@ -93,7 +93,7 @@ public class WhatsappChatService
 
         // Enviar via Meta API
         string? waMessageId = null;
-        var url = $"https://graph.facebook.com/v19.0/{settings.WhatsappPhoneNumberId.Trim()}/messages";
+        var url = $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages";
 
         var payload = new
         {
@@ -211,7 +211,7 @@ public class WhatsappChatService
 
         try
         {
-            var res = await client.GetAsync($"https://graph.facebook.com/v19.0/{mediaId}");
+            var res = await client.GetAsync($"https://graph.facebook.com/v25.0/{mediaId}");
             if (!res.IsSuccessStatusCode) return null;
             var json   = await res.Content.ReadAsStringAsync();
             var parsed = JsonSerializer.Deserialize<JsonElement>(json);
@@ -234,7 +234,7 @@ public class WhatsappChatService
         try
         {
             // 1. Obtener URL del media
-            var metaRes = await client.GetAsync($"https://graph.facebook.com/v19.0/{mediaId}");
+            var metaRes = await client.GetAsync($"https://graph.facebook.com/v25.0/{mediaId}");
             if (!metaRes.IsSuccessStatusCode) return (null, null);
             var metaJson = await metaRes.Content.ReadAsStringAsync();
             var metaParsed = JsonSerializer.Deserialize<JsonElement>(metaJson);
@@ -280,7 +280,7 @@ public class WhatsappChatService
         multipart.Add(new StringContent("whatsapp"), "messaging_product");
 
         var uploadRes = await client.PostAsync(
-            $"https://graph.facebook.com/v19.0/{phoneNumId}/media", multipart);
+            $"https://graph.facebook.com/v25.0/{phoneNumId}/media", multipart);
 
         if (!uploadRes.IsSuccessStatusCode)
         {
@@ -322,7 +322,7 @@ public class WhatsappChatService
         var sendJson    = JsonSerializer.Serialize(sendPayload);
         var sendContent = new StringContent(sendJson, System.Text.Encoding.UTF8, "application/json");
         var sendRes     = await client.PostAsync(
-            $"https://graph.facebook.com/v19.0/{phoneNumId}/messages", sendContent);
+            $"https://graph.facebook.com/v25.0/{phoneNumId}/messages", sendContent);
 
         string? waMessageId = null;
         if (sendRes.IsSuccessStatusCode)
