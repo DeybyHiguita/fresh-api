@@ -10,11 +10,14 @@ public record WhatsappContactDto(
 );
 
 public record WhatsappMessageDto(
-    int    Id,
-    string Direction,
-    string Body,
-    string Status,
-    string CreatedAt
+    int     Id,
+    string  Direction,
+    string  Body,
+    string  Status,
+    string  CreatedAt,
+    string? MediaType = null,
+    string? MediaId   = null,
+    string? MediaName = null
 );
 
 public record SendMessageRequest(

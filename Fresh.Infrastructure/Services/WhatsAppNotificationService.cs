@@ -51,24 +51,20 @@ public class WhatsAppNotificationService
         if (!settings.WhatsappNotificationsEnabled) return;
         if (!IsConfigured(settings)) return;
 
-        var iconMap = new Dictionary<string, string>
-        {
-            { "Pendiente",       "🕐" },
-            { "En preparación",  "🍳" },
-            { "Listo",           "✅" },
-            { "Entregado",       "📦" },
-            { "Cancelado",       "❌" },
-        };
-        var icon = iconMap.GetValueOrDefault(order.Status, "🔄");
         var customer = !string.IsNullOrWhiteSpace(order.CustomerName)
             ? order.CustomerName : order.UserName;
 
-        var text =
-            $"{icon} *Orden #{order.Id} actualizada*\n" +
-            $"👤 {customer}\n" +
-            $"📋 Nuevo estado: *{order.Status}*";
-
-        await SendTextAsync(settings, text);
+        // Reutiliza la plantilla nueva_orden_admin con el estado actualizado.
+        // SendTextAsync solo funciona dentro de la ventana de 24h del cliente;
+        // la plantilla funciona siempre.
+        await SendTemplateAsync(settings, "nueva_orden_admin", "es",
+            order.Id.ToString(),
+            customer,
+            order.OrderType,
+            order.PaymentMethod,
+            $"${order.Total:N0}",
+            order.Status,
+            !string.IsNullOrWhiteSpace(order.Notes) ? order.Notes : "Sin notas");
     }
 
     // ── Core send ─────────────────────────────────────────────────────────

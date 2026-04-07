@@ -1,6 +1,7 @@
 using Fresh.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace Fresh.Infrastructure.Services;
@@ -13,13 +14,16 @@ public class WhatsAppWebhookService
 {
     private readonly ILogger<WhatsAppWebhookService> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public WhatsAppWebhookService(
         ILogger<WhatsAppWebhookService> logger,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IHttpClientFactory httpClientFactory)
     {
-        _logger      = logger;
-        _scopeFactory = scopeFactory;
+        _logger           = logger;
+        _scopeFactory     = scopeFactory;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task ProcessAsync(JsonElement payload)
@@ -56,16 +60,68 @@ public class WhatsAppWebhookService
                             var msgType = msg.TryGetProperty("type", out var t)   ? t.GetString()   ?? "" : "";
                             var waMsgId = msg.TryGetProperty("id",   out var mid) ? mid.GetString() ?? "" : "";
 
-                            if (msgType != "text") continue;
-                            if (!msg.TryGetProperty("text", out var textObj)) continue;
-                            var body = textObj.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
+                            string body      = "";
+                            string? mediaType = null;
+                            string? mediaId   = null;
+                            string? mediaName = null;
+
+                            switch (msgType)
+                            {
+                                case "text":
+                                    if (!msg.TryGetProperty("text", out var textObj)) continue;
+                                    body = textObj.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
+                                    break;
+
+                                case "image":
+                                    if (msg.TryGetProperty("image", out var imgObj))
+                                    {
+                                        mediaType = "image";
+                                        mediaId   = imgObj.TryGetProperty("id", out var iid) ? iid.GetString() : null;
+                                        body      = imgObj.TryGetProperty("caption", out var cap) ? cap.GetString() ?? "" : "";
+                                    }
+                                    break;
+
+                                case "document":
+                                    if (msg.TryGetProperty("document", out var docObj))
+                                    {
+                                        mediaType = "document";
+                                        mediaId   = docObj.TryGetProperty("id",       out var did)  ? did.GetString()       : null;
+                                        mediaName = docObj.TryGetProperty("filename", out var fname) ? fname.GetString()     : null;
+                                        body      = docObj.TryGetProperty("caption",  out var dcap)  ? dcap.GetString() ?? "" : "";
+                                    }
+                                    break;
+
+                                case "audio":
+                                case "voice":
+                                    if (msg.TryGetProperty(msgType, out var audObj))
+                                    {
+                                        mediaType = "audio";
+                                        mediaId   = audObj.TryGetProperty("id", out var aid) ? aid.GetString() : null;
+                                        body      = "🎵 Audio";
+                                    }
+                                    break;
+
+                                case "video":
+                                    if (msg.TryGetProperty("video", out var vidObj))
+                                    {
+                                        mediaType = "video";
+                                        mediaId   = vidObj.TryGetProperty("id",      out var vid)  ? vid.GetString()       : null;
+                                        body      = vidObj.TryGetProperty("caption", out var vcap) ? vcap.GetString() ?? "" : "🎥 Video";
+                                    }
+                                    break;
+
+                                default:
+                                    _logger.LogInformation("[WhatsApp] Tipo de mensaje no soportado: {Type}", msgType);
+                                    continue;
+                            }
 
                             using var scope  = _scopeFactory.CreateScope();
                             var chatService  = scope.ServiceProvider.GetRequiredService<WhatsappChatService>();
                             var notifier     = scope.ServiceProvider.GetRequiredService<IWhatsappHubNotifier>();
+                            var appSettings  = scope.ServiceProvider.GetRequiredService<IAppSettingsService>();
 
                             var (contact, message) = await chatService.SaveIncomingAsync(
-                                from, contactName, body, waMsgId);
+                                from, contactName, body, waMsgId, mediaType, mediaId, mediaName);
 
                             if (message is not null)
                             {
@@ -77,11 +133,14 @@ public class WhatsAppWebhookService
                                     unreadCount = contact.UnreadCount,
                                     messageId   = message.Id,
                                     body        = message.Body,
+                                    mediaType   = message.MediaType,
+                                    mediaId     = message.MediaId,
+                                    mediaName   = message.MediaName,
                                     createdAt   = message.CreatedAt.ToString("o"),
                                 });
                             }
 
-                            _logger.LogInformation("[WhatsApp] Mensaje de {From}: {Body}", from, body);
+                            _logger.LogInformation("[WhatsApp] Mensaje {Type} de {From}", msgType, from);
                         }
                     }
 

@@ -1,6 +1,7 @@
 using Fresh.Core.DTOs.WhatsappChat;
 using Fresh.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Fresh.Api.Controllers;
@@ -36,7 +37,38 @@ public class WhatsappChatController : ControllerBase
             var msg = await _chat.SendReplyAsync(req);
             return Ok(msg);
         }
-        catch (KeyNotFoundException ex)   { return NotFound(new { message = ex.Message }); }
+        catch (KeyNotFoundException ex)      { return NotFound(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    /// <summary>Envía una imagen, documento o audio al contacto.</summary>
+    [HttpPost("send-media")]
+    [RequestSizeLimit(25 * 1024 * 1024)] // 25 MB (límite de Meta)
+    public async Task<ActionResult<WhatsappMessageDto>> SendMedia(
+        [FromForm] int contactId,
+        [FromForm] IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "Archivo vacío." });
+
+        try
+        {
+            var msg = await _chat.SendMediaAsync(contactId, file);
+            return Ok(msg);
+        }
+        catch (KeyNotFoundException ex)      { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    /// <summary>
+    /// Proxy para descargar desde Meta sin exponer el token al frontend.
+    /// GET /api/whatsapp/chat/media/{mediaId}
+    /// </summary>
+    [HttpGet("media/{mediaId}")]
+    public async Task<IActionResult> GetMedia(string mediaId)
+    {
+        var (data, mimeType) = await _chat.DownloadMediaAsync(mediaId);
+        if (data is null) return NotFound();
+        return File(data, mimeType ?? "application/octet-stream");
     }
 }

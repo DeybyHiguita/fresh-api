@@ -2,6 +2,7 @@ using Fresh.Core.DTOs.WhatsappChat;
 using Fresh.Core.Entities;
 using Fresh.Core.Interfaces;
 using Fresh.Infrastructure.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
@@ -70,7 +71,10 @@ public class WhatsappChatService
                 m.Direction,
                 m.Body,
                 m.Status,
-                m.CreatedAt.ToString("o")
+                m.CreatedAt.ToString("o"),
+                m.MediaType,
+                m.MediaId,
+                m.MediaName
             ))
             .ToListAsync();
     }
@@ -143,7 +147,8 @@ public class WhatsappChatService
     // ── Upsert contacto + guardar mensaje entrante (llamado desde webhook) ─
 
     public async Task<(WhatsappContact Contact, WhatsappMessage Message)> SaveIncomingAsync(
-        string waId, string contactName, string body, string waMessageId)
+        string waId, string contactName, string body, string waMessageId,
+        string? mediaType = null, string? mediaId = null, string? mediaName = null)
     {
         // Upsert contacto
         var contact = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
@@ -172,6 +177,9 @@ public class WhatsappChatService
             Body        = body,
             WaMessageId = waMessageId,
             Status      = "read",
+            MediaType   = mediaType,
+            MediaId     = mediaId,
+            MediaName   = mediaName,
             CreatedAt   = DateTime.UtcNow,
         };
         _db.WhatsappMessages.Add(msg);
@@ -187,5 +195,162 @@ public class WhatsappChatService
         await _db.WhatsappMessages
             .Where(m => m.WaMessageId == waMessageId)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, status));
+    }
+
+    // ── Obtener URL de descarga de un media_id de Meta ────────────────────
+    // Meta devuelve una URL temporal (~5 min). El frontend la usa directamente.
+
+    public async Task<string?> GetMediaUrlAsync(string mediaId)
+    {
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken)) return null;
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+        try
+        {
+            var res = await client.GetAsync($"https://graph.facebook.com/v19.0/{mediaId}");
+            if (!res.IsSuccessStatusCode) return null;
+            var json   = await res.Content.ReadAsStringAsync();
+            var parsed = JsonSerializer.Deserialize<JsonElement>(json);
+            return parsed.TryGetProperty("url", out var u) ? u.GetString() : null;
+        }
+        catch { return null; }
+    }
+
+    // ── Descargar y proxy del archivo media (evita exponer token al frontend) ─
+
+    public async Task<(byte[]? Data, string? MimeType)> DownloadMediaAsync(string mediaId)
+    {
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken)) return (null, null);
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+        try
+        {
+            // 1. Obtener URL del media
+            var metaRes = await client.GetAsync($"https://graph.facebook.com/v19.0/{mediaId}");
+            if (!metaRes.IsSuccessStatusCode) return (null, null);
+            var metaJson = await metaRes.Content.ReadAsStringAsync();
+            var metaParsed = JsonSerializer.Deserialize<JsonElement>(metaJson);
+            if (!metaParsed.TryGetProperty("url", out var urlProp)) return (null, null);
+            var mediaUrl  = urlProp.GetString()!;
+            var mimeType  = metaParsed.TryGetProperty("mime_type", out var mt) ? mt.GetString() : "application/octet-stream";
+
+            // 2. Descargar el archivo usando el mismo token
+            var fileRes = await client.GetAsync(mediaUrl);
+            if (!fileRes.IsSuccessStatusCode) return (null, null);
+            var data = await fileRes.Content.ReadAsByteArrayAsync();
+            return (data, mimeType);
+        }
+        catch { return (null, null); }
+    }
+
+    // ── Enviar media (imagen / documento) ────────────────────────────────
+
+    public async Task<WhatsappMessageDto> SendMediaAsync(int contactId, IFormFile file)
+    {
+        var contact = await _db.WhatsappContacts.FindAsync(contactId)
+            ?? throw new KeyNotFoundException($"Contacto {contactId} no encontrado.");
+
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+            string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+            throw new InvalidOperationException("WhatsApp no está configurado correctamente.");
+
+        var token      = settings.WhatsappAccessToken.Trim();
+        var phoneNumId = settings.WhatsappPhoneNumberId.Trim();
+
+        // 1. Subir el archivo a Meta
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        using var fileStream = file.OpenReadStream();
+        using var multipart  = new MultipartFormDataContent();
+        var fileContent      = new StreamContent(fileStream);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            file.ContentType ?? "application/octet-stream");
+        multipart.Add(fileContent, "file", file.FileName);
+        multipart.Add(new StringContent("whatsapp"), "messaging_product");
+
+        var uploadRes = await client.PostAsync(
+            $"https://graph.facebook.com/v19.0/{phoneNumId}/media", multipart);
+
+        if (!uploadRes.IsSuccessStatusCode)
+        {
+            var err = await uploadRes.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Error subiendo media a Meta: {err}");
+        }
+
+        var uploadJson = await uploadRes.Content.ReadAsStringAsync();
+        var uploadParsed = JsonSerializer.Deserialize<JsonElement>(uploadJson);
+        if (!uploadParsed.TryGetProperty("id", out var mediaIdProp))
+            throw new InvalidOperationException("Meta no devolvió media_id.");
+
+        var waMediaId = mediaIdProp.GetString()!;
+
+        // 2. Detectar tipo de media
+        var contentType = file.ContentType ?? "";
+        var mediaType   = contentType.StartsWith("image/")  ? "image"
+                        : contentType.StartsWith("video/")  ? "video"
+                        : contentType.StartsWith("audio/")  ? "audio"
+                        : "document";
+
+        // 3. Enviar mensaje con el media_id
+        object mediaPayloadBody = mediaType switch
+        {
+            "image"    => new { id = waMediaId, caption = "" },
+            "video"    => new { id = waMediaId, caption = "" },
+            "audio"    => new { id = waMediaId },
+            _          => new { id = waMediaId, filename = file.FileName },
+        };
+
+        var sendPayload = new Dictionary<string, object>
+        {
+            ["messaging_product"] = "whatsapp",
+            ["to"]                = contact.WaId,
+            ["type"]              = mediaType,
+            [mediaType]           = mediaPayloadBody,
+        };
+
+        var sendJson    = JsonSerializer.Serialize(sendPayload);
+        var sendContent = new StringContent(sendJson, System.Text.Encoding.UTF8, "application/json");
+        var sendRes     = await client.PostAsync(
+            $"https://graph.facebook.com/v19.0/{phoneNumId}/messages", sendContent);
+
+        string? waMessageId = null;
+        if (sendRes.IsSuccessStatusCode)
+        {
+            var sendBody   = await sendRes.Content.ReadAsStringAsync();
+            var sendParsed = JsonSerializer.Deserialize<JsonElement>(sendBody);
+            if (sendParsed.TryGetProperty("messages", out var msgs) && msgs.GetArrayLength() > 0)
+                waMessageId = msgs[0].TryGetProperty("id", out var wid) ? wid.GetString() : null;
+        }
+
+        // 4. Guardar en BD
+        var msg = new WhatsappMessage
+        {
+            ContactId   = contact.Id,
+            Direction   = "out",
+            Body        = file.FileName,
+            WaMessageId = waMessageId,
+            Status      = "sent",
+            MediaType   = mediaType,
+            MediaId     = waMediaId,
+            MediaName   = file.FileName,
+            CreatedAt   = DateTime.UtcNow,
+        };
+        _db.WhatsappMessages.Add(msg);
+        contact.LastMessageAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return new WhatsappMessageDto(msg.Id, "out", msg.Body, msg.Status,
+            msg.CreatedAt.ToString("o"), msg.MediaType, msg.MediaId, msg.MediaName);
     }
 }
