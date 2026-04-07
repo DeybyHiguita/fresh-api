@@ -146,12 +146,13 @@ public class WhatsappChatService
 
     // ── Upsert contacto + guardar mensaje entrante (llamado desde webhook) ─
 
-    public async Task<(WhatsappContact Contact, WhatsappMessage Message)> SaveIncomingAsync(
+    public async Task<(WhatsappContact Contact, WhatsappMessage? Message, bool IsNewContact)> SaveIncomingAsync(
         string waId, string contactName, string body, string waMessageId,
         string? mediaType = null, string? mediaId = null, string? mediaName = null)
     {
         // Upsert contacto
-        var contact = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
+        var contact      = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
+        bool isNewContact = contact is null;
         if (contact is null)
         {
             contact = new WhatsappContact { WaId = waId, Name = contactName };
@@ -168,7 +169,7 @@ public class WhatsappChatService
 
         // Evitar duplicados por waMessageId
         var exists = await _db.WhatsappMessages.AnyAsync(m => m.WaMessageId == waMessageId);
-        if (exists) return (contact, null!);
+        if (exists) return (contact, null, false);
 
         var msg = new WhatsappMessage
         {
@@ -185,7 +186,7 @@ public class WhatsappChatService
         _db.WhatsappMessages.Add(msg);
         await _db.SaveChangesAsync();
 
-        return (contact, msg);
+        return (contact, msg, isNewContact);
     }
 
     // ── Actualizar estado del mensaje saliente (desde webhook statuses) ───
@@ -195,6 +196,15 @@ public class WhatsappChatService
         await _db.WhatsappMessages
             .Where(m => m.WaMessageId == waMessageId)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, status));
+    }
+
+    // ── Obtener WaId de un contacto por su ID interno ─────────────────────
+
+    public async Task<string> GetContactWaIdAsync(int contactId)
+    {
+        var contact = await _db.WhatsappContacts.FindAsync(contactId)
+            ?? throw new KeyNotFoundException($"Contacto {contactId} no encontrado.");
+        return contact.WaId;
     }
 
     // ── Obtener URL de descarga de un media_id de Meta ────────────────────
@@ -297,7 +307,9 @@ public class WhatsappChatService
 
         // 2. Detectar tipo de media
         var contentType = file.ContentType ?? "";
-        var mediaType   = contentType.StartsWith("image/")  ? "image"
+        var mediaType   = (contentType == "image/webp" || file.FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+                            ? "sticker"
+                        : contentType.StartsWith("image/")  ? "image"
                         : contentType.StartsWith("video/")  ? "video"
                         : contentType.StartsWith("audio/")  ? "audio"
                         : "document";
@@ -305,6 +317,7 @@ public class WhatsappChatService
         // 3. Enviar mensaje con el media_id
         object mediaPayloadBody = mediaType switch
         {
+            "sticker"  => new { id = waMediaId },
             "image"    => new { id = waMediaId, caption = "" },
             "video"    => new { id = waMediaId, caption = "" },
             "audio"    => new { id = waMediaId },
@@ -491,5 +504,130 @@ public class WhatsappChatService
         }
     }
 
-    public static string GetDeliveryButtonId() => DeliveryButtonId;
+    public static string GetDeliveryButtonId()    => DeliveryButtonId;
+    public static string GetMenuOptionHablar()    => "HABLAR_TIENDA";
+    public static string GetMenuOptionVerMenu()   => "VER_MENU";
+    public static string GetMenuOptionDomicilio() => "HACER_DOMICILIO";
+
+    // ── Menú de bienvenida (lista interactiva con 3 opciones) ─────────────
+
+    public async Task SendWelcomeMenuAsync(string waId)
+    {
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+            string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+            return;
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            to                = waId,
+            type              = "interactive",
+            interactive       = new
+            {
+                type   = "list",
+                header = new { type = "text", text = "¡Bienvenid@ a Fresh! 🌿" },
+                body   = new { text = "¿en qué podemos ayudarte hoy? Selecciona una opción:" },
+                footer = new { text = "Fresh · Tu tienda de confianza" },
+                action = new
+                {
+                    button   = "Ver opciones",
+                    sections = new[]
+                    {
+                        new
+                        {
+                            rows = new object[]
+                            {
+                                new { id = GetMenuOptionHablar(),    title = "Hablar con la tienda 💬", description = "Chatea con un agente" },
+                                new { id = GetMenuOptionVerMenu(),   title = "Ver menú 🍽️",             description = "Conoce nuestros productos" },
+                                new { id = GetMenuOptionDomicilio(), title = "Hacer domicilio 🛵",       description = "Pide a domicilio" },
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        var json    = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        var res = await client.PostAsync(
+            $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages", content);
+
+        if (res.IsSuccessStatusCode)
+        {
+            var contact = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
+            if (contact is not null)
+            {
+                _db.WhatsappMessages.Add(new WhatsappMessage
+                {
+                    ContactId = contact.Id,
+                    Direction = "out",
+                    Body      = "📋 Menú de bienvenida enviado",
+                    Status    = "sent",
+                    CreatedAt = DateTime.UtcNow,
+                });
+                contact.LastMessageAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+        }
+    }
+
+    // ── Enviar botón de URL del menú al cliente ───────────────────────────
+
+    public async Task SendMenuUrlAsync(string waId)
+    {
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+            string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+            return;
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            to                = waId,
+            type              = "interactive",
+            interactive       = new
+            {
+                type   = "cta_url",
+                body   = new { text = "¡Aquí está nuestro menú completo! 🍽️ Toca el botón para verlo." },
+                action = new
+                {
+                    name       = "cta_url",
+                    parameters = new
+                    {
+                        display_text = "Ver menú 🍽️",
+                        url          = "https://fresh-app-production.up.railway.app/menu"
+                    }
+                }
+            }
+        };
+
+        var json    = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        await client.PostAsync(
+            $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages", content);
+
+        var contact = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
+        if (contact is not null)
+        {
+            _db.WhatsappMessages.Add(new WhatsappMessage
+            {
+                ContactId = contact.Id,
+                Direction = "out",
+                Body      = "🍽️ Menú de productos enviado",
+                Status    = "sent",
+                CreatedAt = DateTime.UtcNow,
+            });
+            contact.LastMessageAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+    }
 }

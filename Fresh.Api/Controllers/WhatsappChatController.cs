@@ -81,6 +81,20 @@ public class WhatsappChatController : ControllerBase
         catch (Exception ex)                 { return StatusCode(500, new { message = ex.Message }); }
     }
 
+    /// <summary>Envía el menú de bienvenida interactivo (lista con 3 opciones) al contacto.</summary>
+    [HttpPost("send-welcome-menu")]
+    public async Task<IActionResult> SendWelcomeMenu([FromBody] DeliveryPromptRequest req)
+    {
+        try
+        {
+            var contact = await _chat.GetContactWaIdAsync(req.ContactId);
+            await _chat.SendWelcomeMenuAsync(contact);
+            return Ok();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
+    }
+
     /// <summary>
     /// Proxy para descargar desde Meta sin exponer el token al frontend.
     /// GET /api/whatsapp/chat/media/{mediaId}

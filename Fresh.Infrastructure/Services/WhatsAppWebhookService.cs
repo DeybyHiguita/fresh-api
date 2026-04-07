@@ -110,6 +110,15 @@ public class WhatsAppWebhookService
                                     }
                                     break;
 
+                                case "sticker":
+                                    if (msg.TryGetProperty("sticker", out var stkObj))
+                                    {
+                                        mediaType = "sticker";
+                                        mediaId   = stkObj.TryGetProperty("id", out var stid) ? stid.GetString() : null;
+                                        body      = "🎭 Sticker";
+                                    }
+                                    break;
+
                                 case "interactive":
                                     // El cuerpo se llenará abajo al detectar el botón de domicilio
                                     body = "";
@@ -120,18 +129,42 @@ public class WhatsAppWebhookService
                                     continue;
                             }
 
-                            // ── Detectar respuesta al botón de domicilio ──
+                            // ── Detectar respuesta interactiva (botón o lista) ──
                             bool isDeliveryButtonReply = false;
+                            bool isMenuVerMenu         = false;
+                            bool isMenuDomicilio       = false;
+
                             if (msgType == "interactive" &&
-                                msg.TryGetProperty("interactive", out var interObj) &&
-                                interObj.TryGetProperty("type", out var interType) &&
-                                interType.GetString() == "button_reply" &&
-                                interObj.TryGetProperty("button_reply", out var btnReply) &&
-                                btnReply.TryGetProperty("id", out var btnId) &&
-                                btnId.GetString() == WhatsappChatService.GetDeliveryButtonId())
+                                msg.TryGetProperty("interactive", out var interObj))
                             {
-                                isDeliveryButtonReply = true;
-                                body = "🛵 " + (btnReply.TryGetProperty("title", out var btnTitle) ? btnTitle.GetString() ?? "" : "Enviar mis datos");
+                                interObj.TryGetProperty("type", out var interType);
+                                var interTypeStr = interType.GetString();
+
+                                // Botón de respuesta rápida (delivery prompt)
+                                if (interTypeStr == "button_reply" &&
+                                    interObj.TryGetProperty("button_reply", out var btnReply) &&
+                                    btnReply.TryGetProperty("id", out var btnId) &&
+                                    btnId.GetString() == WhatsappChatService.GetDeliveryButtonId())
+                                {
+                                    isDeliveryButtonReply = true;
+                                    body = "🛵 " + (btnReply.TryGetProperty("title", out var btnTitle) ? btnTitle.GetString() ?? "" : "Enviar mis datos");
+                                }
+
+                                // Selección de la lista de bienvenida
+                                if (interTypeStr == "list_reply" &&
+                                    interObj.TryGetProperty("list_reply", out var listReply) &&
+                                    listReply.TryGetProperty("id", out var listId))
+                                {
+                                    var selectedId = listId.GetString();
+                                    var selectedTitle = listReply.TryGetProperty("title", out var lt) ? lt.GetString() ?? "" : "";
+                                    body = "📋 " + selectedTitle;
+
+                                    if (selectedId == WhatsappChatService.GetMenuOptionVerMenu())
+                                        isMenuVerMenu = true;
+                                    else if (selectedId == WhatsappChatService.GetMenuOptionDomicilio())
+                                        isMenuDomicilio = true;
+                                    // GetMenuOptionHablar → no necesita auto-respuesta, el agente atiende
+                                }
                             }
 
                             using var scope  = _scopeFactory.CreateScope();
@@ -139,7 +172,7 @@ public class WhatsAppWebhookService
                             var notifier     = scope.ServiceProvider.GetRequiredService<IWhatsappHubNotifier>();
                             var appSettings  = scope.ServiceProvider.GetRequiredService<IAppSettingsService>();
 
-                            var (contact, message) = await chatService.SaveIncomingAsync(
+                            var (contact, message, isNewContact) = await chatService.SaveIncomingAsync(
                                 from, contactName, body, waMsgId, mediaType, mediaId, mediaName);
 
                             if (message is not null)
@@ -158,16 +191,23 @@ public class WhatsAppWebhookService
                                     createdAt   = message.CreatedAt.ToString("o"),
                                 });
 
-                                // Auto-respuesta: enviar formato de domicilio si el cliente presionó el botón
-                                if (isDeliveryButtonReply)
+                                _ = Task.Run(async () =>
                                 {
-                                    _ = Task.Run(async () =>
+                                    using var autoScope = _scopeFactory.CreateScope();
+                                    var svc = autoScope.ServiceProvider.GetRequiredService<WhatsappChatService>();
+
+                                    if (isNewContact)
                                     {
-                                        using var autoScope = _scopeFactory.CreateScope();
-                                        var svc = autoScope.ServiceProvider.GetRequiredService<WhatsappChatService>();
+                                        await Task.Delay(600); // esperar que el mensaje entrante se procese
+                                        await svc.SendWelcomeMenuAsync(from);
+                                    }
+                                    else if (isDeliveryButtonReply)
                                         await svc.SendDeliveryFormatAsync(from);
-                                    });
-                                }
+                                    else if (isMenuVerMenu)
+                                        await svc.SendMenuUrlAsync(from);
+                                    else if (isMenuDomicilio)
+                                        await svc.SendDeliveryFormatAsync(from);
+                                });
                             }
 
                             _logger.LogInformation("[WhatsApp] Mensaje {Type} de {From}", msgType, from);
