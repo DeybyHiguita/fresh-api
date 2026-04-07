@@ -12,13 +12,17 @@ namespace Fresh.Infrastructure.Services;
 public class WhatsAppWebhookService
 {
     private readonly ILogger<WhatsAppWebhookService> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public WhatsAppWebhookService(ILogger<WhatsAppWebhookService> logger)
+    public WhatsAppWebhookService(
+        ILogger<WhatsAppWebhookService> logger,
+        IServiceScopeFactory scopeFactory)
     {
-        _logger = logger;
+        _logger      = logger;
+        _scopeFactory = scopeFactory;
     }
 
-    public async Task ProcessAsync(JsonElement payload, IServiceProvider services)
+    public async Task ProcessAsync(JsonElement payload)
     {
         try
         {
@@ -56,7 +60,7 @@ public class WhatsAppWebhookService
                             if (!msg.TryGetProperty("text", out var textObj)) continue;
                             var body = textObj.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
 
-                            using var scope  = services.CreateScope();
+                            using var scope  = _scopeFactory.CreateScope();
                             var chatService  = scope.ServiceProvider.GetRequiredService<WhatsappChatService>();
                             var notifier     = scope.ServiceProvider.GetRequiredService<IWhatsappHubNotifier>();
 
@@ -91,7 +95,7 @@ public class WhatsAppWebhookService
 
                             if (string.IsNullOrWhiteSpace(waMsgId)) continue;
 
-                            using var scope = services.CreateScope();
+                            using var scope = _scopeFactory.CreateScope();
                             var chatService = scope.ServiceProvider.GetRequiredService<WhatsappChatService>();
                             await chatService.UpdateMessageStatusAsync(waMsgId, statusValue);
 

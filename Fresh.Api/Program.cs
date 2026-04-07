@@ -39,7 +39,7 @@ builder.Services.AddScoped<IAppPageService, AppPageService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 builder.Services.AddScoped<IAppSettingsService, AppSettingsService>();
 builder.Services.AddScoped<WhatsAppNotificationService>();
-builder.Services.AddScoped<WhatsAppWebhookService>();
+builder.Services.AddSingleton<WhatsAppWebhookService>();
 builder.Services.AddScoped<WhatsappChatService>();
 builder.Services.AddScoped<IWhatsappHubNotifier, WhatsappHubNotifier>();
 builder.Services.AddHttpClient("WhatsApp");
