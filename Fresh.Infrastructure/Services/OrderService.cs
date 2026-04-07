@@ -203,6 +203,63 @@ public class OrderService : IOrderService
         return await GetByIdAsync(id);
     }
 
+    public async Task<OrderResponse?> UpdateItemsAsync(int id, List<OrderItemRequest> items)
+    {
+        var order = await _context.Orders
+            .Include(o => o.OrderItems)
+            .FirstOrDefaultAsync(o => o.Id == id);
+
+        if (order == null) throw new KeyNotFoundException($"Orden {id} no encontrada.");
+
+        if (order.Status is "Cancelado" or "Entregado")
+            throw new InvalidOperationException("No se pueden modificar los productos de una orden que ya fue entregada o cancelada.");
+
+        // Validar que los productos existan
+        var menuItemIds = items.Select(i => i.MenuItemId).ToList();
+        var validCount = await _context.MenuItems.CountAsync(m => menuItemIds.Contains(m.Id));
+        if (validCount != menuItemIds.Distinct().Count())
+            throw new InvalidOperationException("Uno o más productos no existen en el menú.");
+
+        // Eliminar items existentes y agregar los nuevos
+        _context.OrderItems.RemoveRange(order.OrderItems);
+
+        var newItems = items.Select(i => new OrderItem
+        {
+            OrderId    = order.Id,
+            MenuItemId = i.MenuItemId,
+            Quantity   = i.Quantity,
+            UnitPrice  = i.UnitPrice,
+            Subtotal   = i.Quantity * i.UnitPrice,
+            ItemNotes  = i.ItemNotes,
+            CreatedAt  = DateTimeOffset.UtcNow,
+            UpdatedAt  = DateTimeOffset.UtcNow
+        }).ToList();
+
+        await _context.OrderItems.AddRangeAsync(newItems);
+
+        // Recalcular totales
+        decimal surcharge = order.OrderType == "Delivery"
+            ? order.Total - order.Subtotal + order.Discount  // mantener surcharge existente si lo hay
+            : 0m;
+        decimal subtotal = newItems.Sum(i => i.Subtotal);
+        // Recalcular surcharge correctamente: total = subtotal + surcharge - discount
+        // Si existía surcharge = oldTotal - oldSubtotal + discount
+        // Simplificamos: recalcular subtotal y mantener discount; surcharge = oldSurcharge
+        decimal oldSurcharge = order.Total - order.Subtotal + order.Discount;
+        if (oldSurcharge < 0) oldSurcharge = 0;
+        decimal newTotal = subtotal + oldSurcharge - order.Discount;
+        if (newTotal < 0) newTotal = 0;
+
+        order.Subtotal   = subtotal;
+        order.Total      = newTotal;
+        order.UpdatedAt  = DateTimeOffset.UtcNow;
+        _context.Orders.Update(order);
+
+        await _context.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
     private static OrderResponse MapToResponse(Order o) => new()
     {
         Id = o.Id,

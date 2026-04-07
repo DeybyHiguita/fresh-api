@@ -198,6 +198,37 @@ public class WhatsappChatService
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, status));
     }
 
+    // ── Marcar mensaje como leído + mostrar indicador de escritura ────────
+
+    public async Task MarkReadWithTypingAsync(string waMessageId)
+    {
+        try
+        {
+            var settings = await _appSettings.GetAsync();
+            if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+                string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+                return;
+
+            var url = $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages";
+            var payload = new
+            {
+                messaging_product = "whatsapp",
+                status            = "read",
+                message_id        = waMessageId,
+                typing_indicator  = new { type = "text" }
+            };
+
+            var json    = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var client  = _httpClientFactory.CreateClient("WhatsApp");
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+            await client.PostAsync(url, content);
+        }
+        catch { /* no bloquear el flujo si falla */ }
+    }
+
     // ── Obtener WaId de un contacto por su ID interno ─────────────────────
 
     public async Task<string> GetContactWaIdAsync(int contactId)

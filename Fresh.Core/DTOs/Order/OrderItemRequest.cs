@@ -17,6 +17,12 @@ public class OrderItemRequest
     public string? ItemNotes { get; set; }
 }
 
+public class UpdateOrderItemsRequest
+{
+    [Required, MinLength(1)]
+    public List<OrderItemRequest> Items { get; set; } = [];
+}
+
 public class OrderRequest
 {
     [Required]

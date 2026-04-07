@@ -175,6 +175,10 @@ public class WhatsAppWebhookService
                             var (contact, message, isNewContact) = await chatService.SaveIncomingAsync(
                                 from, contactName, body, waMsgId, mediaType, mediaId, mediaName);
 
+                            // Marcar como leído + mostrar indicador de escritura al cliente
+                            if (!string.IsNullOrWhiteSpace(waMsgId))
+                                _ = chatService.MarkReadWithTypingAsync(waMsgId);
+
                             if (message is not null)
                             {
                                 await notifier.NotifyNewMessageAsync(new

@@ -118,4 +118,28 @@ public class OrdersController : ControllerBase
             return Conflict(new { message = ex.Message });
         }
     }
+
+    [Authorize]
+    [HttpPatch("{id}/items")]
+    public async Task<ActionResult<OrderResponse>> UpdateItems(int id, [FromBody] UpdateOrderItemsRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var order = await _orderService.UpdateItemsAsync(id, request.Items);
+            if (order == null) return NotFound();
+            await _orderHub.Clients.Group("admins").SendAsync("OrderUpdated", order);
+            return Ok(order);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
 }
