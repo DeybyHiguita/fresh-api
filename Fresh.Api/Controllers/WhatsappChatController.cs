@@ -71,6 +71,7 @@ public class WhatsappChatController : ControllerBase
     /// Proxy para descargar desde Meta sin exponer el token al frontend.
     /// GET /api/whatsapp/chat/media/{mediaId}
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("media/{mediaId}")]
     public async Task<IActionResult> GetMedia(string mediaId)
     {
