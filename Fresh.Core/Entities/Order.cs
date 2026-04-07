@@ -14,6 +14,7 @@ public class Order
     public string PaymentMethod { get; set; } = "Efectivo";
     public string Status { get; set; } = "Pendiente";
     public string? Notes { get; set; }
+    public bool IsCreditPaid { get; set; } = false;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 

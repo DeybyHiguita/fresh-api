@@ -114,6 +114,91 @@ public class CustomerCreditService : ICustomerCreditService
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<CreditOrderResponse>> GetCreditOrdersAsync(int customerId)
+    {
+        var orders = await _context.Orders
+            .Where(o => o.CustomerId == customerId && o.PaymentMethod == "Crédito")
+            .Include(o => o.OrderItems).ThenInclude(i => i.MenuItem)
+            .OrderByDescending(o => o.CreatedAt)
+            .ToListAsync();
+
+        return orders.Select(o => new CreditOrderResponse
+        {
+            OrderId  = o.Id,
+            CustomerName = o.CustomerName,
+            Subtotal = o.Subtotal,
+            Discount = o.Discount,
+            Total    = o.Total,
+            Status   = o.Status,
+            IsCreditPaid = o.IsCreditPaid,
+            CreatedAt = o.CreatedAt,
+            Notes    = o.Notes,
+            Items    = o.OrderItems.Select(i => new CreditOrderItemResponse
+            {
+                MenuItemId   = i.MenuItemId,
+                MenuItemName = i.MenuItem?.Name ?? "Producto",
+                Quantity     = i.Quantity,
+                UnitPrice    = i.UnitPrice,
+                Subtotal     = i.UnitPrice * i.Quantity,
+                ItemNotes    = i.ItemNotes,
+            }).ToList(),
+        }).ToList();
+    }
+
+    public async Task<CustomerCreditResponse> PayOrdersAsync(int creditId, PayOrdersRequest request)
+    {
+        var credit = await _context.CustomerCredits.FindAsync(creditId)
+            ?? throw new KeyNotFoundException("Cuenta de crédito no encontrada.");
+
+        if (request.OrderIds.Count == 0)
+            throw new InvalidOperationException("Selecciona al menos una orden para pagar.");
+
+        var orders = await _context.Orders
+            .Where(o => request.OrderIds.Contains(o.Id)
+                     && o.CustomerId == credit.CustomerId
+                     && o.PaymentMethod == "Crédito"
+                     && !o.IsCreditPaid)
+            .ToListAsync();
+
+        if (orders.Count == 0)
+            throw new InvalidOperationException("No se encontraron órdenes válidas para pagar.");
+
+        decimal totalToPay = orders.Sum(o => o.Total);
+
+        if (totalToPay > credit.CurrentBalance)
+            throw new InvalidOperationException($"El monto a pagar (${totalToPay}) supera el saldo adeudado (${credit.CurrentBalance}).");
+
+        decimal balanceBefore = credit.CurrentBalance;
+        credit.CurrentBalance -= totalToPay;
+        credit.Status = credit.CurrentBalance <= 0 ? "Al día"
+                       : credit.CurrentBalance < credit.CreditLimit ? "Con deuda"
+                       : "Límite alcanzado";
+        credit.UpdatedAt = DateTimeOffset.UtcNow;
+
+        foreach (var order in orders)
+            order.IsCreditPaid = true;
+
+        var orderIds = string.Join(", #", orders.Select(o => o.Id));
+        var description = $"Pago de órdenes #{orderIds}";
+        if (!string.IsNullOrWhiteSpace(request.PaymentMethod)) description += $" ({request.PaymentMethod})";
+        if (!string.IsNullOrWhiteSpace(request.Notes)) description += $": {request.Notes}";
+
+        _context.CreditTransactions.Add(new CreditTransaction
+        {
+            CustomerCreditId = credit.Id,
+            OrderId = null,
+            Type = "Abono",
+            Amount = totalToPay,
+            BalanceBefore = balanceBefore,
+            BalanceAfter = credit.CurrentBalance,
+            Description = description,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+
+        await _context.SaveChangesAsync();
+        return await GetByCustomerIdAsync(credit.CustomerId) ?? throw new Exception("Error mapeando crédito.");
+    }
+
     public async Task<CustomerCreditResponse?> RegisterPurchaseAsync(int customerId, decimal purchaseAmount)
     {
         var credit = await _context.CustomerCredits.FirstOrDefaultAsync(c => c.CustomerId == customerId);

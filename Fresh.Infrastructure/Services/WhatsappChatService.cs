@@ -63,22 +63,24 @@ public class WhatsappChatService
             .Where(c => c.Id == contactId)
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.UnreadCount, 0));
 
-        return await _db.WhatsappMessages
+        var rows = await _db.WhatsappMessages
             .Where(m => m.ContactId == contactId)
             .OrderBy(m => m.CreatedAt)
-            .Select(m => new WhatsappMessageDto(
-                m.Id,
-                m.Direction,
-                m.Body,
-                m.Status,
-                m.CreatedAt.ToString("o"),
-                m.MediaType,
-                m.MediaId,
-                m.MediaName,
-                m.WaMessageId,
-                m.ReplyToWaMessageId
-            ))
             .ToListAsync();
+
+        return rows.Select(m => new WhatsappMessageDto(
+            m.Id,
+            m.Direction,
+            m.Body,
+            m.Status,
+            m.CreatedAt.ToString("o"),
+            m.MediaType,
+            m.MediaId,
+            m.MediaName,
+            m.WaMessageId,
+            m.ReplyToWaMessageId,
+            null
+        )).ToList();
     }
 
     // ── Enviar respuesta ──────────────────────────────────────────────────
@@ -275,7 +277,7 @@ public class WhatsappChatService
             {
                 var settings = await _appSettings.GetAsync();
                 if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
-                    string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+                    string.IsNullOrWhiteSpace(settings. WhatsappPhoneNumberId))
                     return;
 
                 var url = $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages";

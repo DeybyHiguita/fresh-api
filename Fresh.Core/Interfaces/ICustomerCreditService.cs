@@ -9,4 +9,6 @@ public interface ICustomerCreditService
     Task<CustomerCreditResponse?> RegisterPaymentAsync(int id, CreditPaymentRequest request);
     Task<CustomerCreditResponse?> RegisterPurchaseAsync(int customerId, decimal purchaseAmount);
     Task<IEnumerable<CreditTransactionResponse>> GetTransactionsAsync(int customerId);
+    Task<IEnumerable<CreditOrderResponse>> GetCreditOrdersAsync(int customerId);
+    Task<CustomerCreditResponse> PayOrdersAsync(int creditId, PayOrdersRequest request);
 }
