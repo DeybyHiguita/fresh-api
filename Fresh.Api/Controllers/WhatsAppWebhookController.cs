@@ -51,8 +51,11 @@ public class WhatsAppWebhookController : ControllerBase
     [HttpPost]
     public IActionResult Receive([FromBody] JsonElement payload, [FromServices] IServiceProvider services)
     {
-        // Meta espera siempre 200 OK inmediato; procesamos en background
-        _ = Task.Run(() => _webhookService.ProcessAsync(payload, services));
+        // IMPORTANTE: JsonElement es una referencia a memoria del JsonDocument del request.
+        // Al devolver Ok() el scope HTTP se libera y esa memoria se invalida.
+        // Clone() crea una copia independiente que vive mientras el Task.Run la necesite.
+        var safePayload = payload.Clone();
+        _ = Task.Run(() => _webhookService.ProcessAsync(safePayload, services));
         return Ok();
     }
 }

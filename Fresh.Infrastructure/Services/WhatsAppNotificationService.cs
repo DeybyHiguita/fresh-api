@@ -184,45 +184,15 @@ public class WhatsAppNotificationService
         if (!IsConfigured(settings))
             return (false, "Faltan datos de configuración (teléfono, token o Phone Number ID).");
 
-        var phone      = settings.WhatsappAdminPhone.Trim();
-        var token      = settings.WhatsappAccessToken.Trim();
-        var phoneNumId = settings.WhatsappPhoneNumberId.Trim();
-
-        var url = $"https://graph.facebook.com/v19.0/{phoneNumId}/messages";
-
-        var payload = new
-        {
-            messaging_product = "whatsapp",
-            to   = phone,
-            type = "template",
-            template = new
-            {
-                name     = "hello_world",
-                language = new { code = "en_US" }
-            }
-        };
-
-        var json    = System.Text.Json.JsonSerializer.Serialize(payload);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var client = _httpClientFactory.CreateClient("WhatsApp");
-        client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
         try
         {
-            var response = await client.PostAsync(url, content);
-            var body     = await response.Content.ReadAsStringAsync();
-
-            if (response.IsSuccessStatusCode)
-                return (true, string.Empty);
-
-            Console.WriteLine($"[WhatsApp] Test error {response.StatusCode}: {body}");
-            return (false, $"Error {(int)response.StatusCode}: {body}");
+            // Usa la plantilla aprobada nueva_orden_admin con datos de ejemplo
+            await SendTemplateAsync(settings, "nueva_orden_admin", "es",
+                "0", "Cliente prueba", "Para llevar", "Efectivo", "$10,000", "Pendiente", "Sin notas");
+            return (true, "Mensaje de prueba enviado correctamente.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[WhatsApp] Test excepción: {ex.Message}");
             return (false, ex.Message);
         }
     }
