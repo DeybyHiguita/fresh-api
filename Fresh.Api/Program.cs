@@ -39,6 +39,7 @@ builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();
 builder.Services.AddScoped<IAppPageService, AppPageService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 builder.Services.AddScoped<IAppSettingsService, AppSettingsService>();
+builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<WhatsAppNotificationService>();
 builder.Services.AddSingleton<WhatsAppWebhookService>();
 builder.Services.AddScoped<WhatsappChatService>();

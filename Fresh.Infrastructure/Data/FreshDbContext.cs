@@ -44,6 +44,7 @@ public class FreshDbContext : DbContext
     public DbSet<WhatsappMessage> WhatsappMessages => Set<WhatsappMessage>();
     public DbSet<Safe> Safes => Set<Safe>();
     public DbSet<SafeTransaction> SafeTransactions => Set<SafeTransaction>();
+    public DbSet<AppAlert> AppAlerts => Set<AppAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -129,6 +130,20 @@ public class FreshDbContext : DbContext
           .HasForeignKey<Invoice>(e => e.OrderId)
           .OnDelete(DeleteBehavior.Restrict);
 });
+
+        modelBuilder.Entity<AppAlert>(entity =>
+        {
+            entity.ToTable("app_alerts");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Message).HasColumnName("message").IsRequired();
+            entity.Property(e => e.AlertType).HasColumnName("alert_type").HasMaxLength(20).HasDefaultValue("info");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.LastSentAt).HasColumnName("last_sent_at");
+            entity.Property(e => e.SendCount).HasColumnName("send_count").HasDefaultValue(0);
+        });
 
         modelBuilder.Entity<AppPage>(entity =>
         {

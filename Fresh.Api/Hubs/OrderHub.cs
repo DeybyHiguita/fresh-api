@@ -20,6 +20,10 @@ public class OrderHub : Hub
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, "admins");
         }
+        else
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, "users");
+        }
 
         await base.OnConnectedAsync();
     }
