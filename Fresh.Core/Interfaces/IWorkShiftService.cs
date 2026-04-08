@@ -20,5 +20,5 @@ public interface IWorkShiftService
     Task<bool> RemoveBreakAsync(int shiftId, int breakId);
 
     // Vista de horas trabajadas
-    Task<IEnumerable<DailyWorkedHoursResponse>> GetDailyWorkedHoursAsync(int? userId = null, DateOnly? date = null);
+    Task<IEnumerable<DailyWorkedHoursResponse>> GetDailyWorkedHoursAsync(int? userId = null, DateOnly? startDate = null, DateOnly? endDate = null);
 }

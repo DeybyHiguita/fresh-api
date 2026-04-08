@@ -276,15 +276,18 @@ public class WorkShiftService : IWorkShiftService
     // ?? Vista horas trabajadas ????????????????????????????????????????????????
 
     public async Task<IEnumerable<DailyWorkedHoursResponse>> GetDailyWorkedHoursAsync(
-        int? userId = null, DateOnly? date = null)
+        int? userId = null, DateOnly? startDate = null, DateOnly? endDate = null)
     {
         var query = _context.DailyWorkedHours.AsQueryable();
 
         if (userId.HasValue)
             query = query.Where(v => v.UserId == userId.Value);
 
-        if (date.HasValue)
-            query = query.Where(v => v.ShiftDate == date.Value);
+        if (startDate.HasValue)
+            query = query.Where(v => v.ShiftDate >= startDate.Value);
+
+        if (endDate.HasValue)
+            query = query.Where(v => v.ShiftDate <= endDate.Value);
 
         var results = await query
             .OrderByDescending(v => v.ShiftDate)

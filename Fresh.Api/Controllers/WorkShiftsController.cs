@@ -223,9 +223,10 @@ public class WorkShiftsController : ControllerBase
     [HttpGet("daily-hours")]
     public async Task<ActionResult<IEnumerable<DailyWorkedHoursResponse>>> GetDailyHours(
         [FromQuery] int? userId,
-        [FromQuery] DateOnly? date)
+        [FromQuery] DateOnly? startDate,
+        [FromQuery] DateOnly? endDate)
     {
-        var results = await _workShiftService.GetDailyWorkedHoursAsync(userId, date);
+        var results = await _workShiftService.GetDailyWorkedHoursAsync(userId, startDate, endDate);
         return Ok(results);
     }
 }
