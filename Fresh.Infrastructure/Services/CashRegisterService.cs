@@ -87,13 +87,15 @@ public class CashRegisterService : ICashRegisterService
 
         // Gastos del turno: se filtra por PaymentDate (fecha local Colombia UTC-5) para evitar
         // problemas de zona horaria con CreatedAt UTC, y para respetar la fecha que el usuario registró.
+        // closeDateLocal +1 día: captura gastos ingresados después de las 7PM Colombia (que se
+        // guardan con la fecha UTC del día siguiente por el bug del toISOString en el frontend).
         var colombiaOffset = TimeSpan.FromHours(-5);
         var openDateLocal  = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
-        var closeDateLocal = DateOnly.FromDateTime(until.ToOffset(colombiaOffset).DateTime);
+        var closeDateLocal = DateOnly.FromDateTime(until.ToOffset(colombiaOffset).DateTime).AddDays(1);
 
-        var expenses = await _context.Expenses
+        var expenses = (await _context.Expenses.ToListAsync())
             .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal)
-            .ToListAsync();
+            .ToList();
 
         decimal expCash     = expenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
         decimal expTransfer = expenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
@@ -160,14 +162,15 @@ public class CashRegisterService : ICashRegisterService
 
         // Descuento de gastos del turno para determinar el efectivo esperado real
         // Se filtra por PaymentDate con fecha local Colombia (UTC-5)
+        // closeDateLocal +1: ídem al GetSystemTotalsAsync, para capturar gastos post 7PM Colombia.
         var colombiaOffset   = TimeSpan.FromHours(-5);
         var openDateLocal    = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
-        var closeDateLocal   = DateOnly.FromDateTime(closingTime.ToOffset(colombiaOffset).DateTime);
+        var closeDateLocal   = DateOnly.FromDateTime(closingTime.ToOffset(colombiaOffset).DateTime).AddDays(1);
 
-        var expensesCash = await _context.Expenses
+        var expensesCash = (await _context.Expenses.ToListAsync())
             .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal
-                     && e.PaymentMethod == "Efectivo")
-            .SumAsync(e => e.AmountPaid);
+                     && e.PaymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase))
+            .Sum(e => e.AmountPaid);
 
         decimal netCashExpected = calculatedSystemCash - expensesCash;
 

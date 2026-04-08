@@ -15,13 +15,16 @@ public class CashPeriodService : ICashPeriodService
     public async Task<IEnumerable<CashPeriodResponse>> GetAllAsync()
     {
         var periods = await _context.CashPeriods.OrderByDescending(p => p.StartDate).ToListAsync();
-        return periods.Select(MapToResponse);
+        var result = new List<CashPeriodResponse>();
+        foreach (var p in periods)
+            result.Add(await BuildResponseAsync(p));
+        return result;
     }
 
     public async Task<CashPeriodResponse?> GetByIdAsync(int id)
     {
         var period = await _context.CashPeriods.FindAsync(id);
-        return period == null ? null : MapToResponse(period);
+        return period == null ? null : await BuildResponseAsync(period);
     }
 
     public async Task<CashPeriodResponse> CreateAsync(CashPeriodRequest request)
@@ -41,7 +44,7 @@ public class CashPeriodService : ICashPeriodService
 
         _context.CashPeriods.Add(period);
         await _context.SaveChangesAsync();
-        return MapToResponse(period);
+        return await BuildResponseAsync(period);
     }
 
     public async Task<CashPeriodResponse?> ClosePeriodAsync(int id)
@@ -59,15 +62,32 @@ public class CashPeriodService : ICashPeriodService
         period.UpdatedAt = DateTimeOffset.UtcNow;
         _context.CashPeriods.Update(period);
         await _context.SaveChangesAsync();
-        return MapToResponse(period);
+        return await BuildResponseAsync(period);
     }
 
-    private static CashPeriodResponse MapToResponse(CashPeriod p) => new()
+    private async Task<CashPeriodResponse> BuildResponseAsync(CashPeriod p)
     {
-        Id = p.Id,
-        Name = p.Name,
-        StartDate = p.StartDate,
-        EndDate = p.EndDate,
-        IsClosed = p.IsClosed
-    };
+        var expenses = (await _context.Expenses.ToListAsync())
+            .Where(e => e.PaymentDate >= p.StartDate && e.PaymentDate <= p.EndDate)
+            .ToList();
+
+        decimal expCash     = expenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        decimal expTransfer = expenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        decimal expCard     = expenses.Where(e => e.PaymentMethod.Equals("Tarjeta",       StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+
+        return new CashPeriodResponse
+        {
+            Id               = p.Id,
+            Name             = p.Name,
+            StartDate        = p.StartDate,
+            EndDate          = p.EndDate,
+            IsClosed         = p.IsClosed,
+            TotalExpenses    = expCash + expTransfer + expCard,
+            ExpensesCash     = expCash,
+            ExpensesTransfer = expTransfer,
+            ExpensesCard     = expCard,
+            ExpenseCount     = expenses.Count,
+        };
+    }
 }
+
