@@ -85,6 +85,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.MediaType).HasColumnName("media_type").HasMaxLength(20);
             entity.Property(e => e.MediaId).HasColumnName("media_id").HasMaxLength(200);
             entity.Property(e => e.MediaName).HasColumnName("media_name").HasMaxLength(255);
+            entity.Property(e => e.ReplyToWaMessageId).HasColumnName("reply_to_wa_message_id").HasMaxLength(200);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.HasOne(e => e.Contact)
                   .WithMany(c => c.Messages)
