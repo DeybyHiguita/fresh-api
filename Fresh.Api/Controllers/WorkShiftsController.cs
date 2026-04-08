@@ -68,7 +68,7 @@ public class WorkShiftsController : ControllerBase
     }
 
     /// <summary>
-    /// Finaliza una jornada activa. Calcula automáticamente las horas netas.
+    /// Finaliza una jornada activa. Calcula automï¿½ticamente las horas netas.
     /// </summary>
     [HttpPatch("{id}/end")]
     public async Task<ActionResult<WorkShiftResponse>> EndShift(int id)
@@ -140,6 +140,46 @@ public class WorkShiftsController : ControllerBase
         {
             return Conflict(new { message = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Agrega un descanso completo (admin) a cualquier jornada, activa o cerrada
+    /// </summary>
+    [HttpPost("{id}/breaks/admin")]
+    public async Task<ActionResult<BreakTimeResponse>> AddBreakAdmin(int id, [FromBody] BreakTimeRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var breakTime = await _workShiftService.AddBreakAdminAsync(id, request);
+            return CreatedAtAction(nameof(GetById), new { id }, breakTime);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Actualiza los tiempos de un descanso (admin)
+    /// </summary>
+    [HttpPut("{id}/breaks/{breakId}")]
+    public async Task<ActionResult<BreakTimeResponse>> UpdateBreak(int id, int breakId, [FromBody] BreakTimeRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var breakTime = await _workShiftService.UpdateBreakAsync(id, breakId, request);
+        if (breakTime == null)
+            return NotFound(new { message = "Descanso no encontrado" });
+
+        return Ok(breakTime);
     }
 
     /// <summary>

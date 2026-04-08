@@ -92,7 +92,7 @@ public class WorkShiftService : IWorkShiftService
         if (shift.EndTime.HasValue)
             throw new InvalidOperationException("La jornada ya fue finalizada");
 
-        // Cerrar cualquier descanso abierto automáticamente
+        // Cerrar cualquier descanso abierto automï¿½ticamente
         var openBreak = shift.BreakTimes.FirstOrDefault(b => b.EndTime == null);
         if (openBreak != null)
         {
@@ -131,6 +131,7 @@ public class WorkShiftService : IWorkShiftService
         shift.EndTime = request.EndTime;
         shift.UpdatedAt = DateTime.UtcNow;
 
+        RecalculateNetHours(shift);
         await _context.SaveChangesAsync();
 
         return MapToResponse(shift);
@@ -180,11 +181,65 @@ public class WorkShiftService : IWorkShiftService
         return MapBreakToResponse(breakTime);
     }
 
+    public async Task<BreakTimeResponse> AddBreakAdminAsync(int shiftId, BreakTimeRequest request)
+    {
+        var shift = await _context.WorkShifts
+            .Include(s => s.BreakTimes)
+            .FirstOrDefaultAsync(s => s.Id == shiftId);
+
+        if (shift == null)
+            throw new KeyNotFoundException($"La jornada con ID {shiftId} no existe");
+
+        if (!request.EndTime.HasValue)
+            throw new InvalidOperationException("Se requiere hora de fin para agregar un descanso retroactivo");
+
+        var breakTime = new BreakTime
+        {
+            ShiftId = shiftId,
+            StartTime = request.StartTime,
+            EndTime = request.EndTime,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        shift.BreakTimes.Add(breakTime);
+        RecalculateNetHours(shift);
+        await _context.SaveChangesAsync();
+
+        return MapBreakToResponse(breakTime);
+    }
+
+    public async Task<BreakTimeResponse?> UpdateBreakAsync(int shiftId, int breakId, BreakTimeRequest request)
+    {
+        var shift = await _context.WorkShifts
+            .Include(s => s.BreakTimes)
+            .FirstOrDefaultAsync(s => s.Id == shiftId);
+
+        if (shift == null) return null;
+
+        var breakTime = shift.BreakTimes.FirstOrDefault(b => b.Id == breakId);
+        if (breakTime == null) return null;
+
+        breakTime.StartTime = request.StartTime;
+        if (request.EndTime.HasValue)
+            breakTime.EndTime = request.EndTime;
+        breakTime.UpdatedAt = DateTime.UtcNow;
+
+        RecalculateNetHours(shift);
+        await _context.SaveChangesAsync();
+
+        return MapBreakToResponse(breakTime);
+    }
+
     public async Task<BreakTimeResponse?> EndBreakAsync(int shiftId, int breakId)
     {
-        var breakTime = await _context.BreakTimes
-            .FirstOrDefaultAsync(b => b.Id == breakId && b.ShiftId == shiftId);
+        var shift = await _context.WorkShifts
+            .Include(s => s.BreakTimes)
+            .FirstOrDefaultAsync(s => s.Id == shiftId);
 
+        if (shift == null) return null;
+
+        var breakTime = shift.BreakTimes.FirstOrDefault(b => b.Id == breakId);
         if (breakTime == null) return null;
 
         if (breakTime.EndTime.HasValue)
@@ -193,6 +248,7 @@ public class WorkShiftService : IWorkShiftService
         breakTime.EndTime = DateTimeOffset.UtcNow;
         breakTime.UpdatedAt = DateTime.UtcNow;
 
+        RecalculateNetHours(shift);
         await _context.SaveChangesAsync();
 
         return MapBreakToResponse(breakTime);
@@ -200,12 +256,18 @@ public class WorkShiftService : IWorkShiftService
 
     public async Task<bool> RemoveBreakAsync(int shiftId, int breakId)
     {
-        var breakTime = await _context.BreakTimes
-            .FirstOrDefaultAsync(b => b.Id == breakId && b.ShiftId == shiftId);
+        var shift = await _context.WorkShifts
+            .Include(s => s.BreakTimes)
+            .FirstOrDefaultAsync(s => s.Id == shiftId);
 
+        if (shift == null) return false;
+
+        var breakTime = shift.BreakTimes.FirstOrDefault(b => b.Id == breakId);
         if (breakTime == null) return false;
 
+        shift.BreakTimes.Remove(breakTime);
         _context.BreakTimes.Remove(breakTime);
+        RecalculateNetHours(shift);
         await _context.SaveChangesAsync();
 
         return true;
@@ -243,6 +305,16 @@ public class WorkShiftService : IWorkShiftService
     }
 
     // ?? Helpers ???????????????????????????????????????????????????????????????
+
+    private static void RecalculateNetHours(WorkShift shift)
+    {
+        if (shift.EndTime == null) return;
+        var grossHours = (shift.EndTime.Value - shift.StartTime).TotalHours;
+        var breakHours = shift.BreakTimes
+            .Where(b => b.EndTime.HasValue)
+            .Sum(b => (b.EndTime!.Value - b.StartTime).TotalHours);
+        shift.TotalHours = (decimal)Math.Max(0, grossHours - breakHours);
+    }
 
     private static WorkShiftResponse MapToResponse(WorkShift shift) => new()
     {

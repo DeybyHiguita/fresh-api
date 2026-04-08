@@ -14,6 +14,8 @@ public interface IWorkShiftService
 
     // Descansos
     Task<BreakTimeResponse> StartBreakAsync(int shiftId, BreakTimeRequest request);
+    Task<BreakTimeResponse> AddBreakAdminAsync(int shiftId, BreakTimeRequest request);
+    Task<BreakTimeResponse?> UpdateBreakAsync(int shiftId, int breakId, BreakTimeRequest request);
     Task<BreakTimeResponse?> EndBreakAsync(int shiftId, int breakId);
     Task<bool> RemoveBreakAsync(int shiftId, int breakId);
 
