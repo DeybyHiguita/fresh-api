@@ -25,6 +25,7 @@ public class CashRegister
     public string Status { get; set; } = "Abierta"; // Abierta, Cerrada, Descuadrada
     public string? Observations { get; set; }
     public decimal AmountToSafe { get; set; } = 0;
+    public decimal AmountToBankAccount { get; set; } = 0;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

@@ -176,37 +176,62 @@ public class CashRegisterService : ICashRegisterService
 
         // Caja descuadrada si diferencia de efectivo (descontando gastos) supera $1000
         decimal diff = Math.Abs(request.ReportedCash - netCashExpected);
-        register.Status       = diff > 1000m ? "Descuadrada" : "Cerrada";
-        register.AmountToSafe = request.AmountToSafe;
+        register.Status              = diff > 1000m ? "Descuadrada" : "Cerrada";
+        register.AmountToSafe        = request.AmountToSafe;
+        register.AmountToBankAccount = request.AmountToBankAccount;
 
         _context.CashRegisters.Update(register);
 
-        // Si hay monto para caja fuerte, registrar el ingreso
+        // Depositar a caja fuerte
         if (request.AmountToSafe > 0)
         {
-            var safe = await _context.Safes.FirstOrDefaultAsync();
+            var safe = await _context.Safes.FirstOrDefaultAsync(s => s.SafeType == "caja_fuerte");
             if (safe == null)
             {
-                safe = new Core.Entities.Safe();
+                safe = new Core.Entities.Safe { SafeType = "caja_fuerte" };
                 _context.Safes.Add(safe);
                 await _context.SaveChangesAsync();
             }
-
             var before     = safe.Balance;
             safe.Balance  += request.AmountToSafe;
             safe.UpdatedAt = DateTimeOffset.UtcNow;
-
-            var tx = new Core.Entities.SafeTransaction
+            _context.SafeTransactions.Add(new Core.Entities.SafeTransaction
             {
-                Type            = "Ingreso",
-                Amount          = request.AmountToSafe,
-                Description     = $"Cierre de caja #{id}",
-                BalanceBefore   = before,
-                BalanceAfter    = safe.Balance,
-                CashRegisterId  = id,
-                CreatedById     = request.ClosedById,
-            };
-            _context.SafeTransactions.Add(tx);
+                Type           = "Ingreso",
+                Amount         = request.AmountToSafe,
+                Description    = $"Cierre de caja #{id}",
+                BalanceBefore  = before,
+                BalanceAfter   = safe.Balance,
+                CashRegisterId = id,
+                CreatedById    = request.ClosedById,
+                SafeType       = "caja_fuerte",
+            });
+        }
+
+        // Depositar a cuenta bancaria
+        if (request.AmountToBankAccount > 0)
+        {
+            var bank = await _context.Safes.FirstOrDefaultAsync(s => s.SafeType == "cuenta_bancaria");
+            if (bank == null)
+            {
+                bank = new Core.Entities.Safe { SafeType = "cuenta_bancaria" };
+                _context.Safes.Add(bank);
+                await _context.SaveChangesAsync();
+            }
+            var before     = bank.Balance;
+            bank.Balance  += request.AmountToBankAccount;
+            bank.UpdatedAt = DateTimeOffset.UtcNow;
+            _context.SafeTransactions.Add(new Core.Entities.SafeTransaction
+            {
+                Type           = "Ingreso",
+                Amount         = request.AmountToBankAccount,
+                Description    = $"Cierre de caja #{id}",
+                BalanceBefore  = before,
+                BalanceAfter   = bank.Balance,
+                CashRegisterId = id,
+                CreatedById    = request.ClosedById,
+                SafeType       = "cuenta_bancaria",
+            });
         }
 
         await _context.SaveChangesAsync();
@@ -235,5 +260,6 @@ public class CashRegisterService : ICashRegisterService
         Status = c.Status,
         Observations = c.Observations,
         AmountToSafe = c.AmountToSafe,
+        AmountToBankAccount = c.AmountToBankAccount,
     };
 }

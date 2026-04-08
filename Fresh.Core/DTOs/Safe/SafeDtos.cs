@@ -4,6 +4,7 @@ public class SafeResponse
 {
     public int Id { get; set; }
     public decimal Balance { get; set; }
+    public string SafeType { get; set; } = string.Empty;
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
@@ -25,6 +26,7 @@ public class SafeExpenseRequest
     public decimal Amount { get; set; }
     public string Description { get; set; } = string.Empty;
     public int CreatedById { get; set; }
+    public string SafeType { get; set; } = "caja_fuerte";
 }
 
 public class SafeDepositRequest
@@ -33,4 +35,5 @@ public class SafeDepositRequest
     public string Description { get; set; } = string.Empty;
     public int? CashRegisterId { get; set; }
     public int CreatedById { get; set; }
+    public string SafeType { get; set; } = "caja_fuerte";
 }

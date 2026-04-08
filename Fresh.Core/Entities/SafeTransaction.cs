@@ -10,6 +10,7 @@ public class SafeTransaction
     public decimal BalanceAfter { get; set; }
     public int? CashRegisterId { get; set; }
     public int? CreatedById { get; set; }
+    public string SafeType { get; set; } = "caja_fuerte"; // "caja_fuerte" | "cuenta_bancaria"
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public CashRegister? CashRegister { get; set; }

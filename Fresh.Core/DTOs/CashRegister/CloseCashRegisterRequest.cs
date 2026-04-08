@@ -20,4 +20,7 @@ public class CloseCashRegisterRequest
 
     [Range(0, double.MaxValue)]
     public decimal AmountToSafe { get; set; } = 0;
+
+    [Range(0, double.MaxValue)]
+    public decimal AmountToBankAccount { get; set; } = 0;
 }

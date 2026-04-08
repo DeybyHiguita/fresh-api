@@ -14,12 +14,13 @@ public class SafeController : ControllerBase
     public SafeController(ISafeService service) { _service = service; }
 
     [HttpGet]
-    public async Task<ActionResult<SafeResponse>> Get()
-        => Ok(await _service.GetSafeAsync());
+    public async Task<ActionResult<SafeResponse>> Get([FromQuery] string safeType = "caja_fuerte")
+        => Ok(await _service.GetSafeAsync(safeType));
 
     [HttpGet("transactions")]
-    public async Task<ActionResult<IEnumerable<SafeTransactionResponse>>> GetTransactions([FromQuery] int? limit)
-        => Ok(await _service.GetTransactionsAsync(limit));
+    public async Task<ActionResult<IEnumerable<SafeTransactionResponse>>> GetTransactions(
+        [FromQuery] string safeType = "caja_fuerte", [FromQuery] int? limit = null)
+        => Ok(await _service.GetTransactionsAsync(safeType, limit));
 
     [HttpPost("expense")]
     public async Task<ActionResult<SafeTransactionResponse>> AddExpense([FromBody] SafeExpenseRequest request)

@@ -10,22 +10,23 @@ public class SafeService : ISafeService
     private readonly FreshDbContext _db;
     public SafeService(FreshDbContext db) { _db = db; }
 
-    public async Task<SafeResponse> GetSafeAsync()
+    public async Task<SafeResponse> GetSafeAsync(string safeType = "caja_fuerte")
     {
-        var safe = await _db.Safes.FirstOrDefaultAsync();
+        var safe = await _db.Safes.FirstOrDefaultAsync(s => s.SafeType == safeType);
         if (safe == null)
         {
-            safe = new Core.Entities.Safe();
+            safe = new Core.Entities.Safe { SafeType = safeType };
             _db.Safes.Add(safe);
             await _db.SaveChangesAsync();
         }
-        return new SafeResponse { Id = safe.Id, Balance = safe.Balance, UpdatedAt = safe.UpdatedAt };
+        return new SafeResponse { Id = safe.Id, Balance = safe.Balance, SafeType = safe.SafeType, UpdatedAt = safe.UpdatedAt };
     }
 
-    public async Task<IEnumerable<SafeTransactionResponse>> GetTransactionsAsync(int? limit = null)
+    public async Task<IEnumerable<SafeTransactionResponse>> GetTransactionsAsync(string safeType = "caja_fuerte", int? limit = null)
     {
         var q = _db.SafeTransactions
             .Include(t => t.CreatedBy)
+            .Where(t => t.SafeType == safeType)
             .OrderByDescending(t => t.CreatedAt)
             .AsQueryable();
 
@@ -48,14 +49,15 @@ public class SafeService : ISafeService
 
     public async Task<SafeTransactionResponse> AddExpenseAsync(SafeExpenseRequest request)
     {
-        var safe = await _db.Safes.FirstOrDefaultAsync()
+        var safeType = request.SafeType ?? "caja_fuerte";
+        var safe = await _db.Safes.FirstOrDefaultAsync(s => s.SafeType == safeType)
                    ?? throw new InvalidOperationException("Caja fuerte no inicializada.");
 
         if (request.Amount <= 0)
             throw new ArgumentException("El monto debe ser mayor a cero.");
 
         if (safe.Balance < request.Amount)
-            throw new InvalidOperationException("Saldo insuficiente en caja fuerte.");
+            throw new InvalidOperationException("Saldo insuficiente.");
 
         var before = safe.Balance;
         safe.Balance  -= request.Amount;
@@ -69,6 +71,7 @@ public class SafeService : ISafeService
             BalanceBefore = before,
             BalanceAfter  = safe.Balance,
             CreatedById   = request.CreatedById,
+            SafeType      = safeType,
         };
         _db.SafeTransactions.Add(tx);
         await _db.SaveChangesAsync();
@@ -78,7 +81,8 @@ public class SafeService : ISafeService
 
     public async Task<SafeTransactionResponse> AddDepositAsync(SafeDepositRequest request)
     {
-        var safe = await _db.Safes.FirstOrDefaultAsync()
+        var safeType = request.SafeType ?? "caja_fuerte";
+        var safe = await _db.Safes.FirstOrDefaultAsync(s => s.SafeType == safeType)
                    ?? throw new InvalidOperationException("Caja fuerte no inicializada.");
 
         if (request.Amount <= 0)
@@ -97,6 +101,7 @@ public class SafeService : ISafeService
             BalanceAfter    = safe.Balance,
             CashRegisterId  = request.CashRegisterId,
             CreatedById     = request.CreatedById,
+            SafeType        = safeType,
         };
         _db.SafeTransactions.Add(tx);
         await _db.SaveChangesAsync();

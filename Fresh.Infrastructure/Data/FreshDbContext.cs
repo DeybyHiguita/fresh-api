@@ -664,6 +664,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Abierta");
             entity.Property(e => e.Observations).HasColumnName("observations");
             entity.Property(e => e.AmountToSafe).HasColumnName("amount_to_safe").HasPrecision(12, 2).HasDefaultValue(0m);
+            entity.Property(e => e.AmountToBankAccount).HasColumnName("amount_to_bank_account").HasPrecision(12, 2).HasDefaultValue(0m);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             entity.HasIndex(e => e.PeriodId).HasDatabaseName("ix_cash_registers_period_id");
@@ -774,7 +775,8 @@ public class FreshDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Balance).HasColumnName("balance").HasPrecision(12, 2).HasDefaultValue(0m);
-            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.SafeType).HasColumnName("safe_type").HasMaxLength(20).HasDefaultValue("caja_fuerte");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");;
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
         });
 
@@ -790,6 +792,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.BalanceAfter).HasColumnName("balance_after").HasPrecision(12, 2);
             entity.Property(e => e.CashRegisterId).HasColumnName("cash_register_id");
             entity.Property(e => e.CreatedById).HasColumnName("created_by_id");
+            entity.Property(e => e.SafeType).HasColumnName("safe_type").HasMaxLength(20).HasDefaultValue("caja_fuerte");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.HasIndex(e => e.Type).HasDatabaseName("idx_safe_transactions_type");
             entity.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_safe_transactions_created_at");
