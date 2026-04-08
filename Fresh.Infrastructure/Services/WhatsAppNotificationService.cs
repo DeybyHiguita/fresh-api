@@ -33,7 +33,7 @@ public class WhatsAppNotificationService
             ? order.CustomerName : order.UserName;
         var notes    = !string.IsNullOrWhiteSpace(order.Notes) ? order.Notes : "Sin notas";
 
-        // Plantilla aprobada: nueva_orden_admin
+        // 1. Plantilla aprobada: nueva_orden_admin (funciona siempre)
         // {{1}} = # orden  {{2}} = cliente  {{3}} = tipo  {{4}} = pago  {{5}} = total  {{6}} = estado  {{7}} = notas
         await SendTemplateAsync(settings, "nueva_orden_admin", "es",
             order.Id.ToString(),
@@ -43,6 +43,10 @@ public class WhatsAppNotificationService
             $"${order.Total:N0}",
             order.Status,
             notes);
+
+        // 2. Detalle de ítems como mensaje de texto de seguimiento
+        if (order.Items?.Count > 0)
+            await SendTextAsync(settings, BuildItemsText(order));
     }
 
     public async Task NotifyStatusChangedAsync(OrderResponse order)
@@ -54,17 +58,56 @@ public class WhatsAppNotificationService
         var customer = !string.IsNullOrWhiteSpace(order.CustomerName)
             ? order.CustomerName : order.UserName;
 
-        // Reutiliza la plantilla nueva_orden_admin con el estado actualizado.
-        // SendTextAsync solo funciona dentro de la ventana de 24h del cliente;
-        // la plantilla funciona siempre.
-        await SendTemplateAsync(settings, "nueva_orden_admin", "es",
-            order.Id.ToString(),
-            customer,
-            order.OrderType,
-            order.PaymentMethod,
-            $"${order.Total:N0}",
-            order.Status,
-            !string.IsNullOrWhiteSpace(order.Notes) ? order.Notes : "Sin notas");
+        // Mensaje de texto diferenciado para actualizaciones de estado
+        await SendTextAsync(settings, BuildStatusChangedText(order, customer));
+    }
+
+    // ── Builders de mensajes ─────────────────────────────────────────────
+
+    private static string BuildItemsText(OrderResponse order)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"🧾 *Detalle de la orden #{order.Id}*");
+        sb.AppendLine();
+        foreach (var item in order.Items)
+        {
+            sb.Append($"• {item.Quantity}x {item.MenuItemName}  →  ${item.Subtotal:N0}");
+            if (!string.IsNullOrWhiteSpace(item.ItemNotes))
+                sb.Append($"  _{item.ItemNotes}_");
+            sb.AppendLine();
+        }
+        sb.AppendLine();
+        if (order.Discount > 0)
+            sb.AppendLine($"💸 Descuento: -${order.Discount:N0}");
+        sb.AppendLine($"💰 *Total: ${order.Total:N0} COP*");
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string BuildStatusChangedText(OrderResponse order, string customer)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"🔄 *Orden #{order.Id} — Estado actualizado*");
+        sb.AppendLine($"👤 Cliente: {customer}");
+        sb.AppendLine($"📋 Nuevo estado: *{order.Status}*");
+        sb.AppendLine($"🍽 Tipo: {order.OrderType}");
+        sb.AppendLine($"💳 Pago: {order.PaymentMethod}");
+        sb.AppendLine($"💰 Total: ${order.Total:N0} COP");
+        if (!string.IsNullOrWhiteSpace(order.Notes))
+            sb.AppendLine($"📝 Notas: {order.Notes}");
+
+        if (order.Items?.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("*Ítems:*");
+            foreach (var item in order.Items)
+            {
+                sb.Append($"• {item.Quantity}x {item.MenuItemName}  ${item.Subtotal:N0}");
+                if (!string.IsNullOrWhiteSpace(item.ItemNotes))
+                    sb.Append($"  _{item.ItemNotes}_");
+                sb.AppendLine();
+            }
+        }
+        return sb.ToString().TrimEnd();
     }
 
     // ── Core send ─────────────────────────────────────────────────────────
