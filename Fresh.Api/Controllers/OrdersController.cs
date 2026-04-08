@@ -55,7 +55,7 @@ public class OrdersController : ControllerBase
             await _orderHub.Clients.Group("admins").SendAsync("NewOrder", order);
 
             // WhatsApp
-            _ = _whatsApp.NotifyNewOrderAsync(order);
+            await _whatsApp.NotifyNewOrderAsync(order);
 
             return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
         }
@@ -83,7 +83,7 @@ public class OrdersController : ControllerBase
             await _orderHub.Clients.Group("admins").SendAsync("OrderUpdated", order);
 
             // WhatsApp
-            _ = _whatsApp.NotifyStatusChangedAsync(order);
+            await _whatsApp.NotifyStatusChangedAsync(order);
 
             return Ok(order);
         }
