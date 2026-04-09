@@ -8,7 +8,7 @@ namespace Fresh.Api.Controllers;
 
 [ApiController]
 [Route("api/whatsapp/chat")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public class WhatsappChatController : ControllerBase
 {
     private readonly WhatsappChatService _chat;
