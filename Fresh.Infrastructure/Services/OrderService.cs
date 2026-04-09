@@ -1,4 +1,5 @@
-﻿using Fresh.Core.DTOs.Order;
+﻿using Fresh.Core.DTOs.Invoice;
+using Fresh.Core.DTOs.Order;
 using Fresh.Core.Entities;
 using Fresh.Core.Interfaces;
 using Fresh.Infrastructure.Data;
@@ -9,10 +10,12 @@ namespace Fresh.Infrastructure.Services;
 public class OrderService : IOrderService
 {
     private readonly FreshDbContext _context;
+    private readonly IInvoiceService _invoiceService;
 
-    public OrderService(FreshDbContext context)
+    public OrderService(FreshDbContext context, IInvoiceService invoiceService)
     {
         _context = context;
+        _invoiceService = invoiceService;
     }
 
     public async Task<IEnumerable<OrderResponse>> GetAllAsync()
@@ -183,6 +186,23 @@ public class OrderService : IOrderService
         }
 
         await _context.SaveChangesAsync();
+
+        // Generar factura automáticamente al entregar, si aún no existe.
+        if (newStatus == "Entregado")
+        {
+            var alreadyInvoiced = await _context.Invoices.AnyAsync(i => i.OrderId == order.Id);
+            if (!alreadyInvoiced)
+            {
+                await _invoiceService.CreateAsync(new InvoiceRequest
+                {
+                    OrderId       = order.Id,
+                    CustomerName  = order.CustomerName,
+                    PaymentMethod = order.PaymentMethod,
+                    TaxAmount     = 0m,
+                    CashTendered  = order.Total,
+                });
+            }
+        }
 
         return await GetByIdAsync(id);
     }

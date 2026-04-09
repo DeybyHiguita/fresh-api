@@ -54,4 +54,17 @@ public class CashRegistersController : ControllerBase
         }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
+
+    [HttpPatch("{id}/edit")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult<CashRegisterResponse>> Edit(int id, [FromBody] EditCashRegisterRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var reg = await _service.EditAsync(id, request);
+            return reg == null ? NotFound() : Ok(reg);
+        }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
 }

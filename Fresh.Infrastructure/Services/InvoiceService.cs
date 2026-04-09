@@ -49,7 +49,9 @@ public class InvoiceService : IInvoiceService
             throw new InvalidOperationException($"La orden {request.OrderId} ya ha sido facturada.");
 
         // 3. Cálculos financieros
-        decimal totalAmount = order.Subtotal - order.Discount + request.TaxAmount;
+        // order.Total ya incluye subtotal - descuento + cargo de domicilio.
+        // Se añade IVA por encima si aplica.
+        decimal totalAmount = order.Total + request.TaxAmount;
         decimal changeAmount = 0m;
 
         if (request.PaymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase))
@@ -66,9 +68,10 @@ public class InvoiceService : IInvoiceService
             OrderId = request.OrderId,
             InvoiceNumber = "POS-TEMP",
             CustomerDocument = request.CustomerDocument,
-            // Si el request no trae nombre, tomamos el de la orden
             CustomerName = string.IsNullOrWhiteSpace(request.CustomerName) ? order.CustomerName : request.CustomerName,
-            Subtotal = order.Subtotal,
+            // Subtotal en factura = Total del pedido (incluye domicilio, excluye IVA),
+            // para que Subtotal + TaxAmount = TotalAmount sea siempre correcto.
+            Subtotal = order.Total,
             TaxAmount = request.TaxAmount,
             DiscountAmount = order.Discount,
             TotalAmount = totalAmount,

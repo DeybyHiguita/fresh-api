@@ -68,27 +68,28 @@ public class CashRegisterService : ICashRegisterService
         if (register == null) return null;
 
         var until = register.ClosingTime ?? DateTimeOffset.UtcNow;
-        var invoices = await _context.Invoices
-            .Where(i => i.CreatedAt >= register.OpeningTime && i.CreatedAt <= until)
+
+        // Usamos PEDIDOS (igual que el dashboard) para que ambas vistas sean consistentes.
+        // Las facturas son opcionales y no se crean para todos los pedidos, lo que causaba
+        // que la caja mostrara menos ventas que el dashboard. Los pedidos cancelados se excluyen.
+        var orders = await _context.Orders
+            .Where(o => o.CreatedAt >= register.OpeningTime && o.CreatedAt <= until
+                     && o.Status != "Cancelado")
             .ToListAsync();
 
-        decimal systemCash = register.OpeningBalance
-            + invoices
-                .Where(i => i.PaymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase))
-                .Sum(i => i.TotalAmount);
+        decimal cashSales     = orders.Where(o => o.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
+        decimal transferSales = orders.Where(o => o.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
+        decimal cardSales     = orders.Where(o => o.PaymentMethod.Equals("Tarjeta",       StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
+        decimal creditSales   = orders.Where(o => o.PaymentMethod.Equals("Crédito",       StringComparison.OrdinalIgnoreCase)
+                                               || o.PaymentMethod.Equals("Credito",       StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
 
-        decimal systemTransfer = invoices
-            .Where(i => i.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase))
-            .Sum(i => i.TotalAmount);
+        // Efectivo en cajón = saldo de apertura + ventas en efectivo
+        decimal systemCash     = register.OpeningBalance + cashSales;
+        decimal systemTransfer = transferSales;
+        decimal systemCard     = cardSales;
+        decimal systemCredit   = creditSales;
 
-        decimal systemCard = invoices
-            .Where(i => i.PaymentMethod.Equals("Tarjeta", StringComparison.OrdinalIgnoreCase))
-            .Sum(i => i.TotalAmount);
-
-        // Gastos del turno: se filtra por PaymentDate (fecha local Colombia UTC-5) para evitar
-        // problemas de zona horaria con CreatedAt UTC, y para respetar la fecha que el usuario registró.
-        // closeDateLocal +1 día: captura gastos ingresados después de las 7PM Colombia (que se
-        // guardan con la fecha UTC del día siguiente por el bug del toISOString en el frontend).
+        // Gastos del turno: se filtra por PaymentDate (fecha local Colombia UTC-5)
         var colombiaOffset = TimeSpan.FromHours(-5);
         var openDateLocal  = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
         var closeDateLocal = DateOnly.FromDateTime(until.ToOffset(colombiaOffset).DateTime).AddDays(1);
@@ -109,8 +110,9 @@ public class CashRegisterService : ICashRegisterService
             SystemCash       = systemCash,
             SystemTransfer   = systemTransfer,
             SystemCard       = systemCard,
-            TotalInvoices    = systemCash - register.OpeningBalance + systemTransfer + systemCard,
-            InvoiceCount     = invoices.Count,
+            SystemCredit     = systemCredit,
+            TotalInvoices    = cashSales + transferSales + cardSales + creditSales,
+            InvoiceCount     = orders.Count,
             ExpensesCash     = expCash,
             ExpensesTransfer = expTransfer,
             ExpensesCard     = expCard,
@@ -131,24 +133,21 @@ public class CashRegisterService : ICashRegisterService
 
         var closingTime = DateTimeOffset.UtcNow;
 
-        // Calcular totales del sistema desde facturas del turno
-        var invoices = await _context.Invoices
-            .Where(i => i.CreatedAt >= register.OpeningTime && i.CreatedAt <= closingTime)
+        // Calcular totales del sistema desde PEDIDOS (igual que el dashboard).
+        // Las facturas son opcionales: no todos los pedidos tienen factura, lo que genera
+        // discrepancias. Los pedidos cancelados se excluyen.
+        var orders = await _context.Orders
+            .Where(o => o.CreatedAt >= register.OpeningTime && o.CreatedAt <= closingTime
+                     && o.Status != "Cancelado")
             .ToListAsync();
 
-        decimal calculatedSystemCash = register.OpeningBalance
-            + invoices
-                .Where(i => i.PaymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase))
-                .Sum(i => i.TotalAmount);
+        decimal salesCash     = orders.Where(o => o.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
+        decimal salesTransfer = orders.Where(o => o.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
+        decimal salesCard     = orders.Where(o => o.PaymentMethod.Equals("Tarjeta",       StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
 
-        decimal calculatedSystemTransfer = invoices
-            .Where(i => i.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase))
-            .Sum(i => i.TotalAmount);
-
-        decimal calculatedSystemCard = invoices
-            .Where(i => i.PaymentMethod.Equals("Tarjeta", StringComparison.OrdinalIgnoreCase))
-            .Sum(i => i.TotalAmount);
-
+        decimal calculatedSystemCash     = register.OpeningBalance + salesCash;
+        decimal calculatedSystemTransfer = salesTransfer;
+        decimal calculatedSystemCard     = salesCard;
         register.ClosedById      = request.ClosedById;
         register.ClosingTime     = closingTime;
         register.ReportedCash    = request.ReportedCash;
@@ -162,20 +161,27 @@ public class CashRegisterService : ICashRegisterService
 
         // Descuento de gastos del turno para determinar el efectivo esperado real
         // Se filtra por PaymentDate con fecha local Colombia (UTC-5)
-        // closeDateLocal +1: ídem al GetSystemTotalsAsync, para capturar gastos post 7PM Colombia.
+        // closeDateLocal +1: captura gastos registrados después de las 7PM Colombia.
         var colombiaOffset   = TimeSpan.FromHours(-5);
         var openDateLocal    = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
         var closeDateLocal   = DateOnly.FromDateTime(closingTime.ToOffset(colombiaOffset).DateTime).AddDays(1);
 
-        var expensesCash = (await _context.Expenses.ToListAsync())
-            .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal
-                     && e.PaymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase))
-            .Sum(e => e.AmountPaid);
+        var allExpenses = (await _context.Expenses.ToListAsync())
+            .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal)
+            .ToList();
 
-        decimal netCashExpected = calculatedSystemCash - expensesCash;
+        decimal expCash     = allExpenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        decimal expTransfer = allExpenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
 
-        // Caja descuadrada si diferencia de efectivo (descontando gastos) supera $1000
-        decimal diff = Math.Abs(request.ReportedCash - netCashExpected);
+        // Tarjeta NO cuenta como dinero físico en el cajón (va al datafono).
+        // La caja se evalúa comparando el TOTAL movible (efectivo + transferencia).
+        // Si la suma cuadra, da igual cómo se distribuya entre los dos métodos.
+        decimal netCashExpected     = calculatedSystemCash     - expCash;
+        decimal netTransferExpected = calculatedSystemTransfer - expTransfer;
+        decimal totalMovableExpected = netCashExpected + netTransferExpected;
+        decimal totalMovableReported = request.ReportedCash + request.ReportedTransfer;
+
+        decimal diff = Math.Abs(totalMovableReported - totalMovableExpected);
         register.Status              = diff > 1000m ? "Descuadrada" : "Cerrada";
         register.AmountToSafe        = request.AmountToSafe;
         register.AmountToBankAccount = request.AmountToBankAccount;
@@ -236,6 +242,49 @@ public class CashRegisterService : ICashRegisterService
 
         await _context.SaveChangesAsync();
 
+        return await GetByIdAsync(register.Id);
+    }
+
+    public async Task<CashRegisterResponse?> EditAsync(int id, EditCashRegisterRequest request)
+    {
+        var register = await _context.CashRegisters.FindAsync(id);
+        if (register == null) return null;
+        if (register.Status == "Abierta")
+            throw new InvalidOperationException("No se puede editar una caja abierta. Ciérrala primero.");
+
+        register.ReportedCash     = request.ReportedCash;
+        register.ReportedTransfer = request.ReportedTransfer;
+        register.ReportedCard     = request.ReportedCard;
+        register.Observations     = request.Observations;
+        register.UpdatedAt        = DateTimeOffset.UtcNow;
+
+        // Recalcular estado con la misma lógica del cierre:
+        // Tarjeta excluida; se compara el total movible (efectivo + transferencia).
+        decimal netCashExpected     = (register.SystemCash     ?? 0);
+        decimal netTransferExpected = (register.SystemTransfer ?? 0);
+
+        // Descontar gastos ya registrados en el turno
+        if (register.ClosingTime.HasValue)
+        {
+            var colombiaOffset = TimeSpan.FromHours(-5);
+            var openDateLocal  = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
+            var closeDateLocal = DateOnly.FromDateTime(register.ClosingTime.Value.ToOffset(colombiaOffset).DateTime).AddDays(1);
+
+            var allExpenses = (await _context.Expenses.ToListAsync())
+                .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal)
+                .ToList();
+
+            netCashExpected     -= allExpenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+            netTransferExpected -= allExpenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        }
+
+        decimal totalMovableExpected = netCashExpected + netTransferExpected;
+        decimal totalMovableReported = request.ReportedCash + request.ReportedTransfer;
+        decimal diff = Math.Abs(totalMovableReported - totalMovableExpected);
+        register.Status = diff > 1000m ? "Descuadrada" : "Cerrada";
+
+        _context.CashRegisters.Update(register);
+        await _context.SaveChangesAsync();
         return await GetByIdAsync(register.Id);
     }
 
