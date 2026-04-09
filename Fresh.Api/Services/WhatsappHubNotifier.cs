@@ -14,5 +14,5 @@ public class WhatsappHubNotifier : IWhatsappHubNotifier
     }
 
     public Task NotifyNewMessageAsync(object payload)
-        => _hub.Clients.Group("admins").SendAsync("NewWhatsappMessage", payload);
+        => _hub.Clients.Group("whatsapp_chat").SendAsync("NewWhatsappMessage", payload);
 }
