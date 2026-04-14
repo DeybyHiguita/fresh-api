@@ -26,6 +26,8 @@ public class SafeService : ISafeService
     {
         var q = _db.SafeTransactions
             .Include(t => t.CreatedBy)
+            .Include(t => t.PurchaseBatch)
+            .Include(t => t.Expense).ThenInclude(e => e!.ExpenseType)
             .Where(t => t.SafeType == safeType)
             .OrderByDescending(t => t.CreatedAt)
             .AsQueryable();
@@ -35,15 +37,19 @@ public class SafeService : ISafeService
 
         return await q.Select(t => new SafeTransactionResponse
         {
-            Id             = t.Id,
-            Type           = t.Type,
-            Amount         = t.Amount,
-            Description    = t.Description,
-            BalanceBefore  = t.BalanceBefore,
-            BalanceAfter   = t.BalanceAfter,
-            CashRegisterId = t.CashRegisterId,
-            CreatedByName  = t.CreatedBy != null ? t.CreatedBy.Name : null,
-            CreatedAt      = t.CreatedAt,
+            Id                = t.Id,
+            Type              = t.Type,
+            Amount            = t.Amount,
+            Description       = t.Description,
+            BalanceBefore     = t.BalanceBefore,
+            BalanceAfter      = t.BalanceAfter,
+            CashRegisterId    = t.CashRegisterId,
+            CreatedByName     = t.CreatedBy != null ? t.CreatedBy.Name : null,
+            PurchaseBatchId   = t.PurchaseBatchId,
+            PurchaseBatchName = t.PurchaseBatch != null ? t.PurchaseBatch.BatchName : null,
+            ExpenseId         = t.ExpenseId,
+            ExpenseTypeName   = t.Expense != null && t.Expense.ExpenseType != null ? t.Expense.ExpenseType.Name : null,
+            CreatedAt         = t.CreatedAt,
         }).ToListAsync();
     }
 
@@ -65,13 +71,15 @@ public class SafeService : ISafeService
 
         var tx = new Core.Entities.SafeTransaction
         {
-            Type          = "Gasto",
-            Amount        = request.Amount,
-            Description   = request.Description,
-            BalanceBefore = before,
-            BalanceAfter  = safe.Balance,
-            CreatedById   = request.CreatedById,
-            SafeType      = safeType,
+            Type            = "Gasto",
+            Amount          = request.Amount,
+            Description     = request.Description,
+            BalanceBefore   = before,
+            BalanceAfter    = safe.Balance,
+            CreatedById     = request.CreatedById,
+            SafeType        = safeType,
+            PurchaseBatchId = request.PurchaseBatchId,
+            ExpenseId       = request.ExpenseId,
         };
         _db.SafeTransactions.Add(tx);
         await _db.SaveChangesAsync();
@@ -113,18 +121,24 @@ public class SafeService : ISafeService
     {
         return await _db.SafeTransactions
             .Include(t => t.CreatedBy)
+            .Include(t => t.PurchaseBatch)
+            .Include(t => t.Expense).ThenInclude(e => e!.ExpenseType)
             .Where(t => t.Id == id)
             .Select(t => new SafeTransactionResponse
             {
-                Id             = t.Id,
-                Type           = t.Type,
-                Amount         = t.Amount,
-                Description    = t.Description,
-                BalanceBefore  = t.BalanceBefore,
-                BalanceAfter   = t.BalanceAfter,
-                CashRegisterId = t.CashRegisterId,
-                CreatedByName  = t.CreatedBy != null ? t.CreatedBy.Name : null,
-                CreatedAt      = t.CreatedAt,
+                Id                = t.Id,
+                Type              = t.Type,
+                Amount            = t.Amount,
+                Description       = t.Description,
+                BalanceBefore     = t.BalanceBefore,
+                BalanceAfter      = t.BalanceAfter,
+                CashRegisterId    = t.CashRegisterId,
+                CreatedByName     = t.CreatedBy != null ? t.CreatedBy.Name : null,
+                PurchaseBatchId   = t.PurchaseBatchId,
+                PurchaseBatchName = t.PurchaseBatch != null ? t.PurchaseBatch.BatchName : null,
+                ExpenseId         = t.ExpenseId,
+                ExpenseTypeName   = t.Expense != null && t.Expense.ExpenseType != null ? t.Expense.ExpenseType.Name : null,
+                CreatedAt         = t.CreatedAt,
             }).FirstAsync();
     }
 }

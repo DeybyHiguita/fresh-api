@@ -14,6 +14,9 @@ public class CreditTransaction
     public decimal BalanceAfter { get; set; }
     public string? Description { get; set; }
 
+    /// <summary>Payment method used when Type="Abono" (Efectivo, Transferencia, etc.)</summary>
+    public string? PaymentMethod { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation

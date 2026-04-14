@@ -18,6 +18,10 @@ public class SafeTransactionResponse
     public decimal BalanceAfter { get; set; }
     public int? CashRegisterId { get; set; }
     public string? CreatedByName { get; set; }
+    public int? PurchaseBatchId { get; set; }
+    public string? PurchaseBatchName { get; set; }
+    public int? ExpenseId { get; set; }
+    public string? ExpenseTypeName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -27,6 +31,8 @@ public class SafeExpenseRequest
     public string Description { get; set; } = string.Empty;
     public int CreatedById { get; set; }
     public string SafeType { get; set; } = "caja_fuerte";
+    public int? PurchaseBatchId { get; set; }
+    public int? ExpenseId { get; set; }
 }
 
 public class SafeDepositRequest
