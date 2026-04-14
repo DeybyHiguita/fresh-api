@@ -69,9 +69,6 @@ public class CashRegisterService : ICashRegisterService
 
         var until = register.ClosingTime ?? DateTimeOffset.UtcNow;
 
-        // Usamos PEDIDOS (igual que el dashboard) para que ambas vistas sean consistentes.
-        // Las facturas son opcionales y no se crean para todos los pedidos, lo que causaba
-        // que la caja mostrara menos ventas que el dashboard. Los pedidos cancelados se excluyen.
         var orders = await _context.Orders
             .Where(o => o.CreatedAt >= register.OpeningTime && o.CreatedAt <= until
                      && o.Status != "Cancelado")
@@ -83,18 +80,21 @@ public class CashRegisterService : ICashRegisterService
         decimal creditSales   = orders.Where(o => o.PaymentMethod.Equals("Crédito",       StringComparison.OrdinalIgnoreCase)
                                                || o.PaymentMethod.Equals("Credito",       StringComparison.OrdinalIgnoreCase)).Sum(o => o.Total);
 
-        // Efectivo en cajón = saldo de apertura + ventas en efectivo
         decimal systemCash     = register.OpeningBalance + cashSales;
         decimal systemTransfer = transferSales;
         decimal systemCard     = cardSales;
         decimal systemCredit   = creditSales;
 
-        // Gastos del turno: se filtra por PaymentDate (fecha local Colombia UTC-5)
+        // Gastos del turno: fecha local Colombia (UTC-5)
         var colombiaOffset = TimeSpan.FromHours(-5);
         var openDateLocal  = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
         var closeDateLocal = DateOnly.FromDateTime(until.ToOffset(colombiaOffset).DateTime).AddDays(1);
 
-        var expenses = (await _context.Expenses.ToListAsync())
+        var allExpenses = await _context.Expenses
+            .Include(e => e.ExpenseType)
+            .ToListAsync();
+
+        var expenses = allExpenses
             .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal)
             .ToList();
 
@@ -103,24 +103,53 @@ public class CashRegisterService : ICashRegisterService
         decimal expCard     = expenses.Where(e => e.PaymentMethod.Equals("Tarjeta",       StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
         decimal totalExp    = expCash + expTransfer + expCard;
 
+        // Abonos de crédito cobrados durante el turno
+        var creditPayments = await _context.CreditTransactions
+            .Where(t => t.Type == "Abono" && t.CreatedAt >= register.OpeningTime && t.CreatedAt <= until)
+            .ToListAsync();
+
+        decimal cpCash     = creditPayments.Where(t => (t.PaymentMethod ?? "Efectivo").Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal cpTransfer = creditPayments.Where(t => (t.PaymentMethod ?? "").Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal cpTotal    = cpCash + cpTransfer;
+
+        // Neto: ventas + abonos crédito − gastos
+        decimal netCash     = systemCash     + cpCash     - expCash;
+        decimal netTransfer = systemTransfer + cpTransfer - expTransfer;
+        decimal netCard     = systemCard                  - expCard;
+
         return new CashSystemTotalsResponse
         {
-            RegisterId       = id,
-            OpeningBalance   = register.OpeningBalance,
-            SystemCash       = systemCash,
-            SystemTransfer   = systemTransfer,
-            SystemCard       = systemCard,
-            SystemCredit     = systemCredit,
-            TotalInvoices    = cashSales + transferSales + cardSales + creditSales,
-            InvoiceCount     = orders.Count,
-            ExpensesCash     = expCash,
-            ExpensesTransfer = expTransfer,
-            ExpensesCard     = expCard,
-            TotalExpenses    = totalExp,
-            ExpenseCount     = expenses.Count,
-            NetCash          = systemCash - expCash,
-            NetTransfer      = systemTransfer - expTransfer,
-            NetCard          = systemCard - expCard,
+            RegisterId           = id,
+            OpeningBalance       = register.OpeningBalance,
+            SystemCash           = systemCash,
+            SystemTransfer       = systemTransfer,
+            SystemCard           = systemCard,
+            SystemCredit         = systemCredit,
+            SalesCash            = cashSales,
+            SalesTransfer        = transferSales,
+            TotalInvoices        = cashSales + transferSales + cardSales + creditSales,
+            InvoiceCount         = orders.Count,
+            CreditPaymentsCash     = cpCash,
+            CreditPaymentsTransfer = cpTransfer,
+            CreditPaymentsTotal    = cpTotal,
+            ExpensesCash         = expCash,
+            ExpensesTransfer     = expTransfer,
+            ExpensesCard         = expCard,
+            TotalExpenses        = totalExp,
+            ExpenseCount         = expenses.Count,
+            Expenses             = expenses.Select(e => new ExpenseItemDto
+            {
+                Id              = e.Id,
+                ExpenseTypeName = e.ExpenseType?.Name ?? "",
+                AmountPaid      = e.AmountPaid,
+                PaymentMethod   = e.PaymentMethod,
+                PaymentDate     = e.PaymentDate,
+                CreatedAt       = e.CreatedAt,
+                Notes           = e.Notes
+            }).ToList(),
+            NetCash     = netCash,
+            NetTransfer = netTransfer,
+            NetCard     = netCard,
         };
     }
 
@@ -133,9 +162,6 @@ public class CashRegisterService : ICashRegisterService
 
         var closingTime = DateTimeOffset.UtcNow;
 
-        // Calcular totales del sistema desde PEDIDOS (igual que el dashboard).
-        // Las facturas son opcionales: no todos los pedidos tienen factura, lo que genera
-        // discrepancias. Los pedidos cancelados se excluyen.
         var orders = await _context.Orders
             .Where(o => o.CreatedAt >= register.OpeningTime && o.CreatedAt <= closingTime
                      && o.Status != "Cancelado")
@@ -159,25 +185,33 @@ public class CashRegisterService : ICashRegisterService
         register.Observations    = request.Observations;
         register.UpdatedAt       = DateTimeOffset.UtcNow;
 
-        // Descuento de gastos del turno para determinar el efectivo esperado real
-        // Se filtra por PaymentDate con fecha local Colombia (UTC-5)
-        // closeDateLocal +1: captura gastos registrados después de las 7PM Colombia.
-        var colombiaOffset   = TimeSpan.FromHours(-5);
-        var openDateLocal    = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
-        var closeDateLocal   = DateOnly.FromDateTime(closingTime.ToOffset(colombiaOffset).DateTime).AddDays(1);
+        // Gastos confirmados por el usuario
+        var colombiaOffset = TimeSpan.FromHours(-5);
+        var openDateLocal  = DateOnly.FromDateTime(register.OpeningTime.ToOffset(colombiaOffset).DateTime);
+        var closeDateLocal = DateOnly.FromDateTime(closingTime.ToOffset(colombiaOffset).DateTime).AddDays(1);
 
-        var allExpenses = (await _context.Expenses.ToListAsync())
+        var allExpenses = await _context.Expenses
             .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal)
-            .ToList();
+            .ToListAsync();
 
-        decimal expCash     = allExpenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
-        decimal expTransfer = allExpenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        // Si el usuario envió lista de IDs seleccionados, usar solo esos; si no, usar todos
+        var activeExpenses = request.SelectedExpenseIds is { Count: > 0 }
+            ? allExpenses.Where(e => request.SelectedExpenseIds.Contains(e.Id)).ToList()
+            : allExpenses;
 
-        // Tarjeta NO cuenta como dinero físico en el cajón (va al datafono).
-        // La caja se evalúa comparando el TOTAL movible (efectivo + transferencia).
-        // Si la suma cuadra, da igual cómo se distribuya entre los dos métodos.
-        decimal netCashExpected     = calculatedSystemCash     - expCash;
-        decimal netTransferExpected = calculatedSystemTransfer - expTransfer;
+        decimal expCash     = activeExpenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+        decimal expTransfer = activeExpenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+
+        // Abonos de crédito cobrados durante el turno
+        var creditPayments = await _context.CreditTransactions
+            .Where(t => t.Type == "Abono" && t.CreatedAt >= register.OpeningTime && t.CreatedAt <= closingTime)
+            .ToListAsync();
+
+        decimal cpCash     = creditPayments.Where(t => (t.PaymentMethod ?? "Efectivo").Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal cpTransfer = creditPayments.Where(t => (t.PaymentMethod ?? "").Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+
+        decimal netCashExpected     = calculatedSystemCash     + cpCash     - expCash;
+        decimal netTransferExpected = calculatedSystemTransfer + cpTransfer - expTransfer;
         decimal totalMovableExpected = netCashExpected + netTransferExpected;
         decimal totalMovableReported = request.ReportedCash + request.ReportedTransfer;
 
@@ -185,6 +219,7 @@ public class CashRegisterService : ICashRegisterService
         register.Status              = diff > 1000m ? "Descuadrada" : "Cerrada";
         register.AmountToSafe        = request.AmountToSafe;
         register.AmountToBankAccount = request.AmountToBankAccount;
+        register.AmountLeftInRegister = request.AmountLeftInRegister;
 
         _context.CashRegisters.Update(register);
 
@@ -310,5 +345,6 @@ public class CashRegisterService : ICashRegisterService
         Observations = c.Observations,
         AmountToSafe = c.AmountToSafe,
         AmountToBankAccount = c.AmountToBankAccount,
+        AmountLeftInRegister = c.AmountLeftInRegister,
     };
 }

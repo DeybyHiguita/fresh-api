@@ -28,4 +28,5 @@ public class CashRegisterResponse
     public string? Observations { get; set; }
     public decimal AmountToSafe { get; set; } = 0;
     public decimal AmountToBankAccount { get; set; } = 0;
+    public decimal AmountLeftInRegister { get; set; } = 0;
 }

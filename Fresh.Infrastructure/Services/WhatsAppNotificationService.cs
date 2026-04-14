@@ -33,20 +33,17 @@ public class WhatsAppNotificationService
             ? order.CustomerName : order.UserName;
         var notes    = !string.IsNullOrWhiteSpace(order.Notes) ? order.Notes : "Sin notas";
 
-        // 1. Plantilla aprobada: nueva_orden_admin (funciona siempre)
-        // {{1}} = # orden  {{2}} = cliente  {{3}} = tipo  {{4}} = pago  {{5}} = total  {{6}} = estado  {{7}} = notas
-        await SendTemplateAsync(settings, "nueva_orden_admin", "es",
+        // Plantilla aprobada: nueva_orden_detalle (todo en un solo mensaje)
+        // {{1}} = # orden  {{2}} = cliente  {{3}} = tipo  {{4}} = pago
+        // {{5}} = ítems    {{6}} = total    {{7}} = notas
+        await SendTemplateAsync(settings, "nueva_orden_detalle", "es",
             order.Id.ToString(),
             customer,
             order.OrderType,
             order.PaymentMethod,
-            $"${order.Total:N0}",
-            order.Status,
+            BuildItemsLine(order),
+            $"{order.Total:N0}",
             notes);
-
-        // 2. Detalle de ítems como mensaje de texto de seguimiento
-        if (order.Items?.Count > 0)
-            await SendTextAsync(settings, BuildItemsText(order));
     }
 
     public async Task NotifyStatusChangedAsync(OrderResponse order)
@@ -63,6 +60,23 @@ public class WhatsAppNotificationService
     }
 
     // ── Builders de mensajes ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Compacto para {{5}} de la plantilla nueva_orden_detalle.
+    /// Cada ítem en una línea: "• 2x Bandeja paisa $28.000"
+    /// </summary>
+    private static string BuildItemsLine(OrderResponse order)
+    {
+        if (order.Items == null || order.Items.Count == 0) return "Sin ítems";
+        var lines = order.Items.Select(item =>
+        {
+            var line = $"• {item.Quantity}x {item.MenuItemName}  ${item.Subtotal:N0}";
+            if (!string.IsNullOrWhiteSpace(item.ItemNotes))
+                line += $" ({item.ItemNotes})";
+            return line;
+        });
+        return string.Join("\n", lines);
+    }
 
     private static string BuildItemsText(OrderResponse order)
     {

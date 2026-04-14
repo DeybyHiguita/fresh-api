@@ -11,8 +11,12 @@ public class SafeTransaction
     public int? CashRegisterId { get; set; }
     public int? CreatedById { get; set; }
     public string SafeType { get; set; } = "caja_fuerte"; // "caja_fuerte" | "cuenta_bancaria"
+    public int? PurchaseBatchId { get; set; }
+    public int? ExpenseId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public CashRegister? CashRegister { get; set; }
     public User? CreatedBy { get; set; }
+    public PurchaseBatch? PurchaseBatch { get; set; }
+    public Expense? Expense { get; set; }
 }

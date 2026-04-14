@@ -238,6 +238,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.BalanceBefore).HasColumnName("balance_before").HasPrecision(10, 2).IsRequired();
             entity.Property(e => e.BalanceAfter).HasColumnName("balance_after").HasPrecision(10, 2).IsRequired();
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(300);
+            entity.Property(e => e.PaymentMethod).HasColumnName("payment_method").HasMaxLength(50);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
 
             entity.HasIndex(e => e.CustomerCreditId).HasDatabaseName("ix_credit_tx_credit_id");
@@ -680,6 +681,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.Observations).HasColumnName("observations");
             entity.Property(e => e.AmountToSafe).HasColumnName("amount_to_safe").HasPrecision(12, 2).HasDefaultValue(0m);
             entity.Property(e => e.AmountToBankAccount).HasColumnName("amount_to_bank_account").HasPrecision(12, 2).HasDefaultValue(0m);
+            entity.Property(e => e.AmountLeftInRegister).HasColumnName("amount_left_in_register").HasPrecision(12, 2).HasDefaultValue(0m);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             entity.HasIndex(e => e.PeriodId).HasDatabaseName("ix_cash_registers_period_id");
@@ -808,11 +810,15 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.CashRegisterId).HasColumnName("cash_register_id");
             entity.Property(e => e.CreatedById).HasColumnName("created_by_id");
             entity.Property(e => e.SafeType).HasColumnName("safe_type").HasMaxLength(20).HasDefaultValue("caja_fuerte");
+            entity.Property(e => e.PurchaseBatchId).HasColumnName("purchase_batch_id");
+            entity.Property(e => e.ExpenseId).HasColumnName("expense_id");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.HasIndex(e => e.Type).HasDatabaseName("idx_safe_transactions_type");
             entity.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_safe_transactions_created_at");
             entity.HasOne(e => e.CashRegister).WithMany().HasForeignKey(e => e.CashRegisterId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
             entity.HasOne(e => e.CreatedBy).WithMany().HasForeignKey(e => e.CreatedById).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.PurchaseBatch).WithMany().HasForeignKey(e => e.PurchaseBatchId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.Expense).WithMany().HasForeignKey(e => e.ExpenseId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
         });
     }
 }

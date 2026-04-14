@@ -46,6 +46,8 @@ public class CustomerCreditService : ICustomerCreditService
             credit.CreditLimit = request.CreditLimit;
             credit.PaymentFrequency = request.PaymentFrequency;
             credit.UpdatedAt = DateTimeOffset.UtcNow;
+            // Recalcular status por si el límite cambió
+            credit.Status = credit.CurrentBalance <= 0 ? "Al día" : "Con deuda";
             _context.CustomerCredits.Update(credit);
         }
 
@@ -63,9 +65,7 @@ public class CustomerCreditService : ICustomerCreditService
 
         decimal balanceBefore = credit.CurrentBalance;
         credit.CurrentBalance -= request.Amount;
-        credit.Status = credit.CurrentBalance <= 0 ? "Al día"
-                       : credit.CurrentBalance < credit.CreditLimit ? "Con deuda"
-                       : "Límite alcanzado";
+        credit.Status = credit.CurrentBalance <= 0 ? "Al día" : "Con deuda";
         credit.UpdatedAt = DateTimeOffset.UtcNow;
         _context.CustomerCredits.Update(credit);
 
@@ -84,6 +84,7 @@ public class CustomerCreditService : ICustomerCreditService
             BalanceBefore = balanceBefore,
             BalanceAfter = credit.CurrentBalance,
             Description = description,
+            PaymentMethod = request.PaymentMethod,
             CreatedAt = DateTimeOffset.UtcNow
         });
 
@@ -170,9 +171,7 @@ public class CustomerCreditService : ICustomerCreditService
 
         decimal balanceBefore = credit.CurrentBalance;
         credit.CurrentBalance -= totalToPay;
-        credit.Status = credit.CurrentBalance <= 0 ? "Al día"
-                       : credit.CurrentBalance < credit.CreditLimit ? "Con deuda"
-                       : "Límite alcanzado";
+        credit.Status = credit.CurrentBalance <= 0 ? "Al día" : "Con deuda";
         credit.UpdatedAt = DateTimeOffset.UtcNow;
 
         foreach (var order in orders)
@@ -210,8 +209,7 @@ public class CustomerCreditService : ICustomerCreditService
             throw new InvalidOperationException($"La compra excede el límite de crédito disponible (${credit.CreditLimit - credit.CurrentBalance}).");
 
         credit.CurrentBalance += purchaseAmount;
-        if (credit.CurrentBalance > 0 && credit.Status == "Al día") credit.Status = "Con deuda";
-
+        credit.Status = credit.CurrentBalance <= 0 ? "Al día" : "Con deuda";
         credit.UpdatedAt = DateTimeOffset.UtcNow;
         _context.CustomerCredits.Update(credit);
         await _context.SaveChangesAsync();

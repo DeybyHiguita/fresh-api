@@ -26,6 +26,8 @@ public class CashRegister
     public string? Observations { get; set; }
     public decimal AmountToSafe { get; set; } = 0;
     public decimal AmountToBankAccount { get; set; } = 0;
+    /// <summary>Efectivo físico dejado en el cajón para el siguiente turno.</summary>
+    public decimal AmountLeftInRegister { get; set; } = 0;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

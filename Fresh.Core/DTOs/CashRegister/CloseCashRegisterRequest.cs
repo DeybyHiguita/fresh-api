@@ -23,4 +23,10 @@ public class CloseCashRegisterRequest
 
     [Range(0, double.MaxValue)]
     public decimal AmountToBankAccount { get; set; } = 0;
+
+    [Range(0, double.MaxValue)]
+    public decimal AmountLeftInRegister { get; set; } = 0;
+
+    /// <summary>IDs de los gastos que el usuario confirma incluir en el cuadre.</summary>
+    public List<int>? SelectedExpenseIds { get; set; }
 }
