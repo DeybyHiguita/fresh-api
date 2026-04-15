@@ -12,4 +12,6 @@ public class EditCashRegisterRequest
     public string? Observations { get; set; }
     /// <summary>Fuerza el estado: "Cerrada" o "Descuadrada".</summary>
     public string Status { get; set; } = "Cerrada";
+    /// <summary>IDs de gastos que el admin quiere incluir. Null = no cambiar la selección existente.</summary>
+    public List<int>? SelectedExpenseIds { get; set; }
 }

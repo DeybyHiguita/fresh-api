@@ -12,6 +12,7 @@ public class CashRegisterResponse
     public DateTimeOffset OpeningTime { get; set; }
     public DateTimeOffset? ClosingTime { get; set; }
     public decimal OpeningBalance { get; set; }
+    public string? OpeningObservations { get; set; }
 
     public decimal? ReportedCash { get; set; }
     public decimal? ReportedTransfer { get; set; }
@@ -23,6 +24,9 @@ public class CashRegisterResponse
 
     // El valor firmado almacenado al cierre: reportado_total − esperado_neto
     public decimal? CashDifference { get; set; }
+
+    /// <summary>IDs de gastos que el cajero incluyó al cerrar. Null = cierre antiguo sin registro.</summary>
+    public List<int>? SelectedExpenseIds { get; set; }
 
     public string Status { get; set; } = string.Empty;
     public string? Observations { get; set; }

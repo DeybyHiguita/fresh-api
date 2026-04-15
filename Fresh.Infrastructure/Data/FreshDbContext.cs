@@ -671,6 +671,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.OpeningTime).HasColumnName("opening_time").IsRequired();
             entity.Property(e => e.ClosingTime).HasColumnName("closing_time");
             entity.Property(e => e.OpeningBalance).HasColumnName("opening_balance").HasPrecision(10, 2).IsRequired();
+            entity.Property(e => e.OpeningObservations).HasColumnName("opening_observations");
             entity.Property(e => e.ReportedCash).HasColumnName("reported_cash").HasPrecision(10, 2);
             entity.Property(e => e.ReportedTransfer).HasColumnName("reported_transfer").HasPrecision(10, 2);
             entity.Property(e => e.ReportedCard).HasColumnName("reported_card").HasPrecision(10, 2);
@@ -678,6 +679,12 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.SystemTransfer).HasColumnName("system_transfer").HasPrecision(10, 2);
             entity.Property(e => e.SystemCard).HasColumnName("system_card").HasPrecision(10, 2);
             entity.Property(e => e.Difference).HasColumnName("difference").HasPrecision(12, 2);
+            entity.Property(e => e.SelectedExpenseIds).HasColumnName("selected_expense_ids")
+                .HasConversion(
+                    v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                    v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<List<int>>(v, (System.Text.Json.JsonSerializerOptions?)null)
+                )
+                .HasColumnType("text");
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Abierta");
             entity.Property(e => e.Observations).HasColumnName("observations");
             entity.Property(e => e.AmountToSafe).HasColumnName("amount_to_safe").HasPrecision(12, 2).HasDefaultValue(0m);

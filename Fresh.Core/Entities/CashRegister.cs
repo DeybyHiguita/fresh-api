@@ -12,6 +12,9 @@ public class CashRegister
 
     public decimal OpeningBalance { get; set; }
 
+    /// <summary>Observación registrada al abrir la caja (conteo inicial de efectivo).</summary>
+    public string? OpeningObservations { get; set; }
+
     // Lo que reporta el cajero al cerrar
     public decimal? ReportedCash { get; set; }
     public decimal? ReportedTransfer { get; set; }
@@ -24,6 +27,9 @@ public class CashRegister
 
     /// <summary>Diferencia firmada: reportado_total − esperado_neto. Null si aún no se ha cerrado.</summary>
     public decimal? Difference { get; set; }
+
+    /// <summary>IDs de gastos que el cajero incluyó al cerrar (JSON array). Null = cierre sin registro de selección.</summary>
+    public List<int>? SelectedExpenseIds { get; set; }
 
     public string Status { get; set; } = "Abierta"; // Abierta, Cerrada, Descuadrada
     public string? Observations { get; set; }

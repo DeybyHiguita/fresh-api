@@ -51,6 +51,7 @@ public class CashRegisterService : ICashRegisterService
             PeriodId = request.PeriodId,
             OpenedById = request.OpenedById,
             OpeningBalance = request.OpeningBalance,
+            OpeningObservations = request.OpeningObservations,
             OpeningTime = DateTimeOffset.UtcNow,
             Status = "Abierta",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -221,6 +222,8 @@ public class CashRegisterService : ICashRegisterService
         register.AmountToSafe        = request.AmountToSafe;
         register.AmountToBankAccount = request.AmountToBankAccount;
         register.AmountLeftInRegister = request.AmountLeftInRegister;
+        // Guardar qué gastos incluyó el cajero
+        register.SelectedExpenseIds  = activeExpenses.Select(e => e.Id).ToList();
 
         _context.CashRegisters.Update(register);
 
@@ -310,8 +313,21 @@ public class CashRegisterService : ICashRegisterService
                 .Where(e => e.PaymentDate >= openDateLocal && e.PaymentDate <= closeDateLocal)
                 .ToList();
 
-            netCashExpected     -= allExpenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
-            netTransferExpected -= allExpenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+            // Usar los IDs seleccionados del request si los manda; si no, los que ya tiene guardados; si no hay, todos
+            var selectedIds = request.SelectedExpenseIds is { Count: > 0 }
+                ? request.SelectedExpenseIds
+                : (register.SelectedExpenseIds is { Count: > 0 } ? register.SelectedExpenseIds : null);
+
+            var activeExpenses = selectedIds != null
+                ? allExpenses.Where(e => selectedIds.Contains(e.Id)).ToList()
+                : allExpenses;
+
+            netCashExpected     -= activeExpenses.Where(e => e.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+            netTransferExpected -= activeExpenses.Where(e => e.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(e => e.AmountPaid);
+
+            // Guardar la nueva selección
+            if (request.SelectedExpenseIds is { Count: > 0 })
+                register.SelectedExpenseIds = activeExpenses.Select(e => e.Id).ToList();
         }
 
         decimal totalMovableExpected = netCashExpected + netTransferExpected;
@@ -353,6 +369,7 @@ public class CashRegisterService : ICashRegisterService
         OpeningTime = c.OpeningTime,
         ClosingTime = c.ClosingTime,
         OpeningBalance = c.OpeningBalance,
+        OpeningObservations = c.OpeningObservations,
         ReportedCash = c.ReportedCash,
         ReportedTransfer = c.ReportedTransfer,
         ReportedCard = c.ReportedCard,
@@ -360,6 +377,7 @@ public class CashRegisterService : ICashRegisterService
         SystemTransfer = c.SystemTransfer,
         SystemCard = c.SystemCard,
         CashDifference = c.Difference,
+        SelectedExpenseIds = c.SelectedExpenseIds,
         Status = c.Status,
         Observations = c.Observations,
         AmountToSafe = c.AmountToSafe,
