@@ -22,6 +22,9 @@ public class CashRegister
     public decimal? SystemTransfer { get; set; }
     public decimal? SystemCard { get; set; }
 
+    /// <summary>Diferencia firmada: reportado_total − esperado_neto. Null si aún no se ha cerrado.</summary>
+    public decimal? Difference { get; set; }
+
     public string Status { get; set; } = "Abierta"; // Abierta, Cerrada, Descuadrada
     public string? Observations { get; set; }
     public decimal AmountToSafe { get; set; } = 0;

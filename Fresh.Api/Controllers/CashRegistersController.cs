@@ -67,4 +67,17 @@ public class CashRegistersController : ControllerBase
         }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
+
+    [HttpPatch("{id}/opening-balance")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult<CashRegisterResponse>> UpdateOpeningBalance(int id, [FromBody] UpdateOpeningBalanceRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var reg = await _service.UpdateOpeningBalanceAsync(id, request.OpeningBalance);
+            return reg == null ? NotFound() : Ok(reg);
+        }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
 }

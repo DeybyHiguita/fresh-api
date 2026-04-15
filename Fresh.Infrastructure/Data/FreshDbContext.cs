@@ -677,6 +677,7 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.SystemCash).HasColumnName("system_cash").HasPrecision(10, 2);
             entity.Property(e => e.SystemTransfer).HasColumnName("system_transfer").HasPrecision(10, 2);
             entity.Property(e => e.SystemCard).HasColumnName("system_card").HasPrecision(10, 2);
+            entity.Property(e => e.Difference).HasColumnName("difference").HasPrecision(12, 2);
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Abierta");
             entity.Property(e => e.Observations).HasColumnName("observations");
             entity.Property(e => e.AmountToSafe).HasColumnName("amount_to_safe").HasPrecision(12, 2).HasDefaultValue(0m);

@@ -21,8 +21,8 @@ public class CashRegisterResponse
     public decimal? SystemTransfer { get; set; }
     public decimal? SystemCard { get; set; }
 
-    // Propiedad calculada útil para el frontend
-    public decimal? CashDifference => (ReportedCash ?? 0) - (SystemCash ?? 0);
+    // El valor firmado almacenado al cierre: reportado_total − esperado_neto
+    public decimal? CashDifference { get; set; }
 
     public string Status { get; set; } = string.Empty;
     public string? Observations { get; set; }

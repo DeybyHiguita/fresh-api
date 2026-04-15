@@ -215,8 +215,9 @@ public class CashRegisterService : ICashRegisterService
         decimal totalMovableExpected = netCashExpected + netTransferExpected;
         decimal totalMovableReported = request.ReportedCash + request.ReportedTransfer;
 
-        decimal diff = Math.Abs(totalMovableReported - totalMovableExpected);
-        register.Status              = diff > 1000m ? "Descuadrada" : "Cerrada";
+        decimal signedDiff = totalMovableReported - totalMovableExpected;
+        register.Difference          = signedDiff;
+        register.Status              = Math.Abs(signedDiff) > 1000m ? "Descuadrada" : "Cerrada";
         register.AmountToSafe        = request.AmountToSafe;
         register.AmountToBankAccount = request.AmountToBankAccount;
         register.AmountLeftInRegister = request.AmountLeftInRegister;
@@ -315,9 +316,26 @@ public class CashRegisterService : ICashRegisterService
 
         decimal totalMovableExpected = netCashExpected + netTransferExpected;
         decimal totalMovableReported = request.ReportedCash + request.ReportedTransfer;
-        decimal diff = Math.Abs(totalMovableReported - totalMovableExpected);
-        register.Status = diff > 1000m ? "Descuadrada" : "Cerrada";
+        decimal signedDiff = totalMovableReported - totalMovableExpected;
+        register.Difference = signedDiff;
+        register.Status = Math.Abs(signedDiff) > 1000m ? "Descuadrada" : "Cerrada";
 
+        _context.CashRegisters.Update(register);
+        await _context.SaveChangesAsync();
+        return await GetByIdAsync(register.Id);
+    }
+
+    public async Task<CashRegisterResponse?> UpdateOpeningBalanceAsync(int id, decimal openingBalance)
+    {
+        var register = await _context.CashRegisters.FindAsync(id);
+        if (register == null) return null;
+        if (register.Status != "Abierta")
+            throw new InvalidOperationException("Solo se puede editar el saldo inicial de una caja abierta.");
+        if (openingBalance < 0)
+            throw new InvalidOperationException("El saldo inicial no puede ser negativo.");
+
+        register.OpeningBalance = openingBalance;
+        register.UpdatedAt = DateTimeOffset.UtcNow;
         _context.CashRegisters.Update(register);
         await _context.SaveChangesAsync();
         return await GetByIdAsync(register.Id);
@@ -341,6 +359,7 @@ public class CashRegisterService : ICashRegisterService
         SystemCash = c.SystemCash,
         SystemTransfer = c.SystemTransfer,
         SystemCard = c.SystemCard,
+        CashDifference = c.Difference,
         Status = c.Status,
         Observations = c.Observations,
         AmountToSafe = c.AmountToSafe,

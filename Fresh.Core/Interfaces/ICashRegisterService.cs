@@ -10,4 +10,5 @@ public interface ICashRegisterService
     Task<CashRegisterResponse> OpenRegisterAsync(OpenCashRegisterRequest request);
     Task<CashRegisterResponse?> CloseRegisterAsync(int id, CloseCashRegisterRequest request);
     Task<CashRegisterResponse?> EditAsync(int id, EditCashRegisterRequest request);
+    Task<CashRegisterResponse?> UpdateOpeningBalanceAsync(int id, decimal openingBalance);
 }
