@@ -14,4 +14,7 @@ public class EditCashRegisterRequest
     public string Status { get; set; } = "Cerrada";
     /// <summary>IDs de gastos que el admin quiere incluir. Null = no cambiar la selección existente.</summary>
     public List<int>? SelectedExpenseIds { get; set; }
+    public decimal? AmountToSafe { get; set; }
+    public decimal? AmountToBankAccount { get; set; }
+    public decimal? AmountLeftInRegister { get; set; }
 }

@@ -348,6 +348,10 @@ public class CashRegisterService : ICashRegisterService
         register.Difference = signedDiff;
         register.Status = Math.Abs(signedDiff) > 1000m ? "Descuadrada" : "Cerrada";
 
+        if (request.AmountToSafe.HasValue)        register.AmountToSafe         = request.AmountToSafe.Value;
+        if (request.AmountToBankAccount.HasValue)  register.AmountToBankAccount  = request.AmountToBankAccount.Value;
+        if (request.AmountLeftInRegister.HasValue) register.AmountLeftInRegister = request.AmountLeftInRegister.Value;
+
         _context.CashRegisters.Update(register);
         await _context.SaveChangesAsync();
         return await GetByIdAsync(register.Id);
