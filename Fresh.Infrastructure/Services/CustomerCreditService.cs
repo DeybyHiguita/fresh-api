@@ -220,8 +220,11 @@ public class CustomerCreditService : ICustomerCreditService
 
     public async Task<IEnumerable<PaidDebtReportResponse>> GetPaidPaymentsAsync(DateTimeOffset from, DateTimeOffset to)
     {
+        var fromUtc = from.ToUniversalTime();
+        var toUtc   = to.ToUniversalTime();
+
         var rows = await _context.CreditTransactions
-            .Where(t => t.Type == "Abono" && t.CreatedAt >= from && t.CreatedAt <= to)
+            .Where(t => t.Type == "Abono" && t.CreatedAt >= fromUtc && t.CreatedAt <= toUtc)
             .Include(t => t.CustomerCredit)
                 .ThenInclude(cc => cc.Customer)
             .OrderByDescending(t => t.CreatedAt)
