@@ -79,10 +79,15 @@ public class CustomerCreditsController : ControllerBase
         if (!DateOnly.TryParse(from, out var fromDate) || !DateOnly.TryParse(to, out var toDate))
             return BadRequest(new { message = "Fechas inválidas. Usa formato yyyy-MM-dd." });
 
-        // Convertir fecha Colombia (UTC-5) a UTC para la búsqueda
-        var fromUtc = new DateTimeOffset(fromDate.Year, fromDate.Month, fromDate.Day, 0, 0, 0, TimeSpan.FromHours(-5));
-        var toUtc   = new DateTimeOffset(toDate.Year,   toDate.Month,   toDate.Day,   23, 59, 59, TimeSpan.FromHours(-5));
-
-        return Ok(await _service.GetPaidPaymentsAsync(fromUtc, toUtc));
+        try
+        {
+            var fromUtc = new DateTimeOffset(fromDate.Year, fromDate.Month, fromDate.Day, 0, 0, 0, TimeSpan.FromHours(-5));
+            var toUtc   = new DateTimeOffset(toDate.Year,   toDate.Month,   toDate.Day,   23, 59, 59, TimeSpan.FromHours(-5));
+            return Ok(await _service.GetPaidPaymentsAsync(fromUtc, toUtc));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message, detail = ex.InnerException?.Message });
+        }
     }
 }

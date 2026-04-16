@@ -214,6 +214,18 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 
+app.UseExceptionHandler(errApp =>
+{
+    errApp.Run(async ctx =>
+    {
+        ctx.Response.StatusCode  = 500;
+        ctx.Response.ContentType = "application/json";
+        var feature = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
+        var msg = feature?.Error?.Message ?? "Internal server error";
+        await ctx.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new { message = msg }));
+    });
+});
+
 app.UseCors("AllowAngular");
 app.UseAuthentication();
 app.UseAuthorization();
