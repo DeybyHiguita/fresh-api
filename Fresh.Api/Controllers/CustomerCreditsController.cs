@@ -66,4 +66,23 @@ public class CustomerCreditsController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
+
+    /// <summary>
+    /// Reporte de pagos de deudas (Abonos) en un rango de fechas.
+    /// Fechas en formato yyyy-MM-dd (hora Colombia −5).
+    /// </summary>
+    [HttpGet("paid-payments")]
+    public async Task<ActionResult<IEnumerable<PaidDebtReportResponse>>> GetPaidPayments(
+        [FromQuery] string from,
+        [FromQuery] string to)
+    {
+        if (!DateOnly.TryParse(from, out var fromDate) || !DateOnly.TryParse(to, out var toDate))
+            return BadRequest(new { message = "Fechas inválidas. Usa formato yyyy-MM-dd." });
+
+        // Convertir fecha Colombia (UTC-5) a UTC para la búsqueda
+        var fromUtc = new DateTimeOffset(fromDate.Year, fromDate.Month, fromDate.Day, 0, 0, 0, TimeSpan.FromHours(-5));
+        var toUtc   = new DateTimeOffset(toDate.Year,   toDate.Month,   toDate.Day,   23, 59, 59, TimeSpan.FromHours(-5));
+
+        return Ok(await _service.GetPaidPaymentsAsync(fromUtc, toUtc));
+    }
 }

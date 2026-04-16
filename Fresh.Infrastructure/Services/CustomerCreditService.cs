@@ -191,6 +191,7 @@ public class CustomerCreditService : ICustomerCreditService
             BalanceBefore = balanceBefore,
             BalanceAfter = credit.CurrentBalance,
             Description = description,
+            PaymentMethod = request.PaymentMethod,
             CreatedAt = DateTimeOffset.UtcNow,
         });
 
@@ -215,6 +216,32 @@ public class CustomerCreditService : ICustomerCreditService
         await _context.SaveChangesAsync();
 
         return await GetByCustomerIdAsync(customerId);
+    }
+
+    public async Task<IEnumerable<PaidDebtReportResponse>> GetPaidPaymentsAsync(DateTimeOffset from, DateTimeOffset to)
+    {
+        return await _context.CreditTransactions
+            .Where(t => t.Type == "Abono" && t.CreatedAt >= from && t.CreatedAt <= to)
+            .Include(t => t.CustomerCredit)
+                .ThenInclude(cc => cc.Customer)
+            .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new PaidDebtReportResponse
+            {
+                TransactionId    = t.Id,
+                CustomerId       = t.CustomerCredit.CustomerId,
+                CustomerName     = t.CustomerCredit.Customer != null
+                                   ? $"{t.CustomerCredit.Customer.FirstName} {t.CustomerCredit.Customer.LastName}"
+                                   : "Desconocido",
+                CustomerDocument = t.CustomerCredit.Customer != null ? t.CustomerCredit.Customer.DocumentNumber : null,
+                CustomerPhone    = t.CustomerCredit.Customer != null ? t.CustomerCredit.Customer.Phone : null,
+                Amount           = t.Amount,
+                BalanceBefore    = t.BalanceBefore,
+                BalanceAfter     = t.BalanceAfter,
+                PaymentMethod    = t.PaymentMethod,
+                Description      = t.Description,
+                CreatedAt        = t.CreatedAt,
+            })
+            .ToListAsync();
     }
 
     private static CustomerCreditResponse MapToResponse(CustomerCredit c) => new()

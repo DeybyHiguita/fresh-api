@@ -11,4 +11,5 @@ public interface ICustomerCreditService
     Task<IEnumerable<CreditTransactionResponse>> GetTransactionsAsync(int customerId);
     Task<IEnumerable<CreditOrderResponse>> GetCreditOrdersAsync(int customerId);
     Task<CustomerCreditResponse> PayOrdersAsync(int creditId, PayOrdersRequest request);
+    Task<IEnumerable<PaidDebtReportResponse>> GetPaidPaymentsAsync(DateTimeOffset from, DateTimeOffset to);
 }

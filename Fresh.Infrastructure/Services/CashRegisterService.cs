@@ -109,8 +109,8 @@ public class CashRegisterService : ICashRegisterService
             .Where(t => t.Type == "Abono" && t.CreatedAt >= register.OpeningTime && t.CreatedAt <= until)
             .ToListAsync();
 
-        decimal cpCash     = creditPayments.Where(t => (t.PaymentMethod ?? "Efectivo").Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
-        decimal cpTransfer = creditPayments.Where(t => (t.PaymentMethod ?? "").Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal cpCash     = creditPayments.Where(t => string.IsNullOrEmpty(t.PaymentMethod) || t.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal cpTransfer = creditPayments.Where(t => t.PaymentMethod != null && t.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
         decimal cpTotal    = cpCash + cpTransfer;
 
         // Neto: ventas + abonos crédito − gastos
@@ -208,8 +208,8 @@ public class CashRegisterService : ICashRegisterService
             .Where(t => t.Type == "Abono" && t.CreatedAt >= register.OpeningTime && t.CreatedAt <= closingTime)
             .ToListAsync();
 
-        decimal cpCash     = creditPayments.Where(t => (t.PaymentMethod ?? "Efectivo").Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
-        decimal cpTransfer = creditPayments.Where(t => (t.PaymentMethod ?? "").Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal cpCash     = creditPayments.Where(t => string.IsNullOrEmpty(t.PaymentMethod) || t.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal cpTransfer = creditPayments.Where(t => t.PaymentMethod != null && t.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
 
         decimal netCashExpected     = calculatedSystemCash     + cpCash     - expCash;
         decimal netTransferExpected = calculatedSystemTransfer + cpTransfer - expTransfer;
@@ -301,6 +301,18 @@ public class CashRegisterService : ICashRegisterService
         // Tarjeta excluida; se compara el total movible (efectivo + transferencia).
         decimal netCashExpected     = (register.SystemCash     ?? 0);
         decimal netTransferExpected = (register.SystemTransfer ?? 0);
+
+        // Sumar abonos de crédito cobrados durante el turno
+        var editUntil = register.ClosingTime ?? DateTimeOffset.UtcNow;
+        var editCreditPayments = await _context.CreditTransactions
+            .Where(t => t.Type == "Abono" && t.CreatedAt >= register.OpeningTime && t.CreatedAt <= editUntil)
+            .ToListAsync();
+
+        decimal editCpCash     = editCreditPayments.Where(t => string.IsNullOrEmpty(t.PaymentMethod) || t.PaymentMethod.Equals("Efectivo",      StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+        decimal editCpTransfer = editCreditPayments.Where(t => t.PaymentMethod != null && t.PaymentMethod.Equals("Transferencia", StringComparison.OrdinalIgnoreCase)).Sum(t => t.Amount);
+
+        netCashExpected     += editCpCash;
+        netTransferExpected += editCpTransfer;
 
         // Descontar gastos ya registrados en el turno
         if (register.ClosingTime.HasValue)
