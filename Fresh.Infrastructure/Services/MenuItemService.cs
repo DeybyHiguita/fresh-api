@@ -16,12 +16,20 @@ public class MenuItemService : IMenuItemService
 
     public async Task<IEnumerable<MenuItemResponse>> GetAllAsync()
     {
+        var salesByItem = await _context.OrderItems
+            .GroupBy(oi => oi.MenuItemId)
+            .Select(g => new { MenuItemId = g.Key, TotalSold = g.Sum(oi => oi.Quantity) })
+            .ToDictionaryAsync(x => x.MenuItemId, x => x.TotalSold);
+
         var menuItems = await _context.MenuItems
             .Include(m => m.Variants.OrderBy(v => v.SortOrder).ThenBy(v => v.VariantName))
-            .OrderBy(m => m.SortOrder)
-            .ThenBy(m => m.Name)
             .ToListAsync();
-        return menuItems.Select(MapToResponse);
+
+        return menuItems
+            .OrderByDescending(m => salesByItem.GetValueOrDefault(m.Id, 0))
+            .ThenBy(m => m.SortOrder)
+            .ThenBy(m => m.Name)
+            .Select(MapToResponse);
     }
 
     public async Task<MenuItemResponse?> GetByIdAsync(int id)
