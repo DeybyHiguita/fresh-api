@@ -632,7 +632,7 @@ public class WhatsappChatService
             interactive       = new
             {
                 type   = "list",
-                header = new { type = "text", text = "¡Bienvenid@ a Fresh! 🌿" },
+                header = new { type = "text", text = "¡Bienvenid@ a Frescos Bocados! 🌿" },
                 body   = new { text = "¿en qué podemos ayudarte hoy? Selecciona una opción:\n\n" +
                     "✨ *FRAPPÉS Y GRANIZADOS* ($10.000 - $12.000)\n" +
                     "Frappé de Café, Milo, Oreo o Frutos Rojos.\n" +
