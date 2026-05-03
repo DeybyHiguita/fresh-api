@@ -133,6 +133,8 @@ public class WhatsAppWebhookService
                             bool isDeliveryButtonReply = false;
                             bool isMenuVerMenu         = false;
                             bool isMenuDomicilio       = false;
+                            bool isMenuRappi           = false;
+                            bool isMenuDidi            = false;
 
                             if (msgType == "interactive" &&
                                 msg.TryGetProperty("interactive", out var interObj))
@@ -163,6 +165,10 @@ public class WhatsAppWebhookService
                                         isMenuVerMenu = true;
                                     else if (selectedId == WhatsappChatService.GetMenuOptionDomicilio())
                                         isMenuDomicilio = true;
+                                    else if (selectedId == WhatsappChatService.GetMenuOptionRappi())
+                                        isMenuRappi = true;
+                                    else if (selectedId == WhatsappChatService.GetMenuOptionDidi())
+                                        isMenuDidi = true;
                                     // GetMenuOptionHablar → no necesita auto-respuesta, el agente atiende
                                 }
                             }
@@ -211,6 +217,10 @@ public class WhatsAppWebhookService
                                         await svc.SendMenuUrlAsync(from);
                                     else if (isMenuDomicilio)
                                         await svc.SendDeliveryFormatAsync(from);
+                                    else if (isMenuRappi)
+                                        await svc.SendRappiLinkAsync(from);
+                                    else if (isMenuDidi)
+                                        await svc.SendDidiComingSoonAsync(from);
                                 });
                             }
 

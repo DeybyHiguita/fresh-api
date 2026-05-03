@@ -503,7 +503,7 @@ public class WhatsappChatService
                 type = "button",
                 body = new
                 {
-                    text = "¡Hola! 👋 Para procesar tu domicilio en *Fresh*, presiona el botón de abajo y te enviaré el formato para completar. 🛵"
+                    text = "¡Hola! 👋 Para procesar tu domicilio en *Frescos Bocados*, presiona el botón de abajo y te enviaré el formato para completar. 🛵"
                 },
                 action = new
                 {
@@ -610,6 +610,8 @@ public class WhatsappChatService
     public static string GetMenuOptionHablar()    => "HABLAR_TIENDA";
     public static string GetMenuOptionVerMenu()   => "VER_MENU";
     public static string GetMenuOptionDomicilio() => "HACER_DOMICILIO";
+    public static string GetMenuOptionRappi()     => "COMPRAR_RAPPI";
+    public static string GetMenuOptionDidi()      => "COMPRAR_DIDI";
 
     // ── Menú de bienvenida (lista interactiva con 3 opciones) ─────────────
 
@@ -647,7 +649,7 @@ public class WhatsappChatService
                     "🍪 *MECATO Y ALGO MÁS*\n" +
                     "Brownie Bimbo, Chocorramo, Galletas Chokis ($2.000 - $4.000).\n" +
                     "Galletas individuales (Cuca, Arequipe, Mantequilla) desde $300." },
-                footer = new { text = "Fresh · Tu tienda de confianza" },
+                footer = new { text = "Frescos Bocados · Tu tienda de confianza" },
                 action = new
                 {
                     button   = "Ver opciones",
@@ -660,6 +662,8 @@ public class WhatsappChatService
                                 new { id = GetMenuOptionHablar(),    title = "Hablar con la tienda 💬", description = "Chatea con un agente" },
                                 new { id = GetMenuOptionVerMenu(),   title = "Ver menú 🍽️",             description = "Conoce nuestros productos" },
                                 new { id = GetMenuOptionDomicilio(), title = "Hacer domicilio 🛵",       description = "Pide a domicilio" },
+                                new { id = GetMenuOptionRappi(),     title = "Comprar por Rappi 🟠",    description = "Pide por Rappi" },
+                                new { id = GetMenuOptionDidi(),      title = "Comprar por Didi Food 🔴", description = "Pide por Didi Food" },
                             }
                         }
                     }
@@ -688,6 +692,108 @@ public class WhatsappChatService
                 contact.LastMessageAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync();
             }
+        }
+    }
+
+    // ── Enviar enlace de Rappi al cliente ──────────────────────────────────
+
+    public async Task SendRappiLinkAsync(string waId)
+    {
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+            string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+            return;
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            to                = waId,
+            type              = "interactive",
+            interactive       = new
+            {
+                type   = "cta_url",
+                body   = new { text = "¡Pide tus productos favoritos de *Frescos Bocados* por Rappi! 🟠 Toca el botón para ir a nuestra tienda." },
+                action = new
+                {
+                    name       = "cta_url",
+                    parameters = new
+                    {
+                        display_text = "Pedir por Rappi 🟠",
+                        url          = "https://www.rappi.com.co/restaurantes/delivery/357019-fresh-bello?utm_source=app&utm_medium=deeplink&utm_campaign=share"
+                    }
+                }
+            }
+        };
+
+        var json    = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        await client.PostAsync(
+            $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages", content);
+
+        var contact = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
+        if (contact is not null)
+        {
+            _db.WhatsappMessages.Add(new WhatsappMessage
+            {
+                ContactId = contact.Id,
+                Direction = "out",
+                Body      = "🟠 Enlace de Rappi enviado",
+                Status    = "sent",
+                CreatedAt = DateTime.UtcNow,
+            });
+            contact.LastMessageAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+    }
+
+    // ── Respuesta Didi Food (próximamente) ────────────────────────────────
+
+    public async Task SendDidiComingSoonAsync(string waId)
+    {
+        var settings = await _appSettings.GetAsync();
+        if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
+            string.IsNullOrWhiteSpace(settings.WhatsappPhoneNumberId))
+            return;
+
+        var client = _httpClientFactory.CreateClient("WhatsApp");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
+
+        const string texto =
+            "🔴 *Didi Food — Próximamente*\n\n" +
+            "Estamos trabajando para que muy pronto puedas pedir por *Didi Food*. " +
+            "Por ahora puedes hacer tu pedido a través de *Rappi* o directamente con nosotros por este chat. 😊";
+
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            to                = waId,
+            type              = "text",
+            text              = new { preview_url = false, body = texto }
+        };
+
+        var json    = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        await client.PostAsync(
+            $"https://graph.facebook.com/v25.0/{settings.WhatsappPhoneNumberId.Trim()}/messages", content);
+
+        var contact = await _db.WhatsappContacts.FirstOrDefaultAsync(c => c.WaId == waId);
+        if (contact is not null)
+        {
+            _db.WhatsappMessages.Add(new WhatsappMessage
+            {
+                ContactId = contact.Id,
+                Direction = "out",
+                Body      = "🔴 Didi Food — Próximamente",
+                Status    = "sent",
+                CreatedAt = DateTime.UtcNow,
+            });
+            contact.LastMessageAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
         }
     }
 
