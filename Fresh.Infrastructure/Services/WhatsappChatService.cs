@@ -633,7 +633,20 @@ public class WhatsappChatService
             {
                 type   = "list",
                 header = new { type = "text", text = "¡Bienvenid@ a Fresh! 🌿" },
-                body   = new { text = "¿en qué podemos ayudarte hoy? Selecciona una opción:" },
+                body   = new { text = "¿en qué podemos ayudarte hoy? Selecciona una opción:\n\n" +
+                    "✨ *FRAPPÉS Y GRANIZADOS* ($10.000 - $12.000)\n" +
+                    "Frappé de Café, Milo, Oreo o Frutos Rojos.\n" +
+                    "Granizado de Mango (Opción con Chamoy y Tajín).\n\n" +
+                    "🥤 *JUGOS NATURALES* (16oz y 32oz)\n" +
+                    "En agua ($4.000 - $8.000) o en leche ($4.500 - $9.000)\n" +
+                    "Sabores: Fresa, Mora, Guanábana, Lulo, Maracuyá, Mango, Borojó y Naranja.\n" +
+                    "Mix Especiales: Fresa/Banano, Mango/Maracuyá, Mango/Piña/Banano y Mix Fresa/Sandía/Limón.\n\n" +
+                    "🍋 *LIMONADAS Y SODAS* ($8.000 - $8.500)\n" +
+                    "Limonadas: Cereza o Coco (ultra cremosa).\n" +
+                    "Sodas Artesanales (22oz): Cereza, Mango Biche (con sal y limón) o Maracuyá.\n\n" +
+                    "🍪 *MECATO Y ALGO MÁS*\n" +
+                    "Brownie Bimbo, Chocorramo, Galletas Chokis ($2.000 - $4.000).\n" +
+                    "Galletas individuales (Cuca, Arequipe, Mantequilla) desde $300." },
                 footer = new { text = "Fresh · Tu tienda de confianza" },
                 action = new
                 {
@@ -706,7 +719,7 @@ public class WhatsappChatService
                     parameters = new
                     {
                         display_text = "Ver menú 🍽️",
-                        url          = "https://fresh-app-production.up.railway.app/menu"
+                        url          = "https://fresh-app-production-332c.up.railway.app/menu"
                     }
                 }
             }
