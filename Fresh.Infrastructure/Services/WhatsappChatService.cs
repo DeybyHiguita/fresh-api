@@ -772,8 +772,21 @@ public class WhatsappChatService
         {
             messaging_product = "whatsapp",
             to                = waId,
-            type              = "text",
-            text              = new { preview_url = false, body = texto }
+            type              = "interactive",
+            interactive       = new
+            {
+                type   = "cta_url",
+                body   = new { text = "¡Pide tus productos favoritos de *Frescos Bocados* por Didi! 🟠 Toca el botón para ir a nuestra tienda. \n 👋 ¡Hola! Realiza tu pedido en el siguiente enlace y disfruta de precios similares que hay en la tienda física 👇. 🎁 Ve su estado en tiempo real 🚀. " },
+                action = new
+                {
+                    name       = "cta_url",
+                    parameters = new
+                    {
+                        display_text = "Pedir por Didi 🟠",
+                        url          = "https://order.top/es-CO/store/frescos_bocados/pz4yiK"
+                    }
+                }
+            }
         };
 
         var json    = JsonSerializer.Serialize(payload);
@@ -788,7 +801,7 @@ public class WhatsappChatService
             {
                 ContactId = contact.Id,
                 Direction = "out",
-                Body      = "🔴 Didi Food — Próximamente",
+                Body      = "🔴 Didi Food",
                 Status    = "sent",
                 CreatedAt = DateTime.UtcNow,
             });
