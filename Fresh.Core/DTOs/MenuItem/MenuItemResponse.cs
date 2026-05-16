@@ -14,6 +14,7 @@ namespace Fresh.Core.DTOs.MenuItem
         public bool IsAvailable { get; set; }
         public string? ImgUrl { get; set; }
         public int SortOrder { get; set; }
+        public int SalesCount { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public List<MenuItemVariantResponse> Variants { get; set; } = [];

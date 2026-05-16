@@ -29,7 +29,7 @@ public class MenuItemService : IMenuItemService
             .OrderByDescending(m => salesByItem.GetValueOrDefault(m.Id, 0))
             .ThenBy(m => m.SortOrder)
             .ThenBy(m => m.Name)
-            .Select(MapToResponse);
+            .Select(m => MapToResponse(m, salesByItem.GetValueOrDefault(m.Id, 0)));
     }
 
     public async Task<MenuItemResponse?> GetByIdAsync(int id)
@@ -164,7 +164,7 @@ public class MenuItemService : IMenuItemService
         SortOrder = v.SortOrder,
     };
 
-    private static MenuItemResponse MapToResponse(MenuItem menuItem) => new()
+    private static MenuItemResponse MapToResponse(MenuItem menuItem, int salesCount = 0) => new()
     {
         Id = menuItem.Id,
         Name = menuItem.Name,
@@ -175,6 +175,7 @@ public class MenuItemService : IMenuItemService
         IsAvailable = menuItem.IsAvailable,
         ImgUrl = menuItem.ImgUrl,
         SortOrder = menuItem.SortOrder,
+        SalesCount = salesCount,
         CreatedAt = menuItem.CreatedAt,
         UpdatedAt = menuItem.UpdatedAt,
         Variants = menuItem.Variants.Select(v => new MenuItemVariantResponse
