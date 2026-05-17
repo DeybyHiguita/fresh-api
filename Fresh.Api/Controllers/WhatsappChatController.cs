@@ -50,6 +50,7 @@ public class WhatsappChatController : ControllerBase
 
     /// <summary>Envía una imagen, documento o audio al contacto.</summary>
     [HttpPost("send-media")]
+    [Consumes("multipart/form-data")]
     [RequestSizeLimit(25 * 1024 * 1024)] // 25 MB (límite de Meta)
     public async Task<ActionResult<WhatsappMessageDto>> SendMedia(
         [FromForm] int contactId,
