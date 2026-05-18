@@ -44,6 +44,7 @@ builder.Services.AddScoped<WhatsAppNotificationService>();
 builder.Services.AddSingleton<WhatsAppWebhookService>();
 builder.Services.AddScoped<WhatsappChatService>();
 builder.Services.AddScoped<IWhatsappHubNotifier, WhatsappHubNotifier>();
+builder.Services.AddScoped<ITransferHubNotifier, TransferHubNotifier>();
 builder.Services.AddHttpClient("WhatsApp");
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();

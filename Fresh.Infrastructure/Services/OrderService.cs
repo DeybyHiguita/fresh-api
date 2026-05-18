@@ -280,6 +280,32 @@ public class OrderService : IOrderService
         return await GetByIdAsync(id);
     }
 
+    /// <inheritdoc />
+    public async Task<List<OrderMatchDto>> FindPendingTransferOrdersAsync(decimal amount)
+    {
+        // Buscar órdenes pendientes con pago transferencia y monto igual (±$100 de tolerancia)
+        var tolerance = 100m;
+        var orders = await _context.Orders
+            .Where(o => o.Status == "Pendiente"
+                     && o.PaymentMethod == "Transferencia"
+                     && o.Total >= amount - tolerance
+                     && o.Total <= amount + tolerance)
+            .OrderByDescending(o => o.CreatedAt)
+            .Take(10)
+            .Select(o => new OrderMatchDto(
+                o.Id,
+                o.Total,
+                o.CustomerName,
+                o.CustomerPhone,
+                o.PaymentMethod,
+                o.Status,
+                o.CreatedAt
+            ))
+            .ToListAsync();
+
+        return orders;
+    }
+
     private static OrderResponse MapToResponse(Order o) => new()
     {
         Id = o.Id,

@@ -750,9 +750,9 @@ public class WhatsappChatService
         }
     }
 
-    // ── Respuesta Didi Food (próximamente) ────────────────────────────────
+    // ── Respuesta Didi Food ───────────────────────────────────────────────
 
-    public async Task SendDidiComingSoonAsync(string waId)
+    public async Task SendDidiLinkAsync(string waId)
     {
         var settings = await _appSettings.GetAsync();
         if (string.IsNullOrWhiteSpace(settings.WhatsappAccessToken) ||
@@ -763,11 +763,6 @@ public class WhatsappChatService
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.WhatsappAccessToken.Trim());
 
-        const string texto =
-            "🔴 *Didi Food — Próximamente*\n\n" +
-            "Estamos trabajando para que muy pronto puedas pedir por *Didi Food*. " +
-            "Por ahora puedes hacer tu pedido a través de *Rappi* o directamente con nosotros por este chat. 😊";
-
         var payload = new
         {
             messaging_product = "whatsapp",
@@ -776,7 +771,7 @@ public class WhatsappChatService
             interactive       = new
             {
                 type   = "cta_url",
-                body   = new { text = "¡Pide tus productos favoritos de *Frescos Bocados* por Didi! 🟠 Toca el botón para ir a nuestra tienda. \n 👋 ¡Hola! Realiza tu pedido en el siguiente enlace y disfruta de precios similares que hay en la tienda física 👇. 🎁 Ve su estado en tiempo real 🚀. " },
+                body   = new { text = "🟠 *Pide por Didi Food*\n\n¡Pide tus productos favoritos de *Frescos Bocados* por Didi! Toca el botón para ir a nuestra tienda.\n\n🎁 Ve el estado de tu pedido en tiempo real 🚀" },
                 action = new
                 {
                     name       = "cta_url",
@@ -801,7 +796,7 @@ public class WhatsappChatService
             {
                 ContactId = contact.Id,
                 Direction = "out",
-                Body      = "🔴 Didi Food",
+                Body      = "� Didi Food",
                 Status    = "sent",
                 CreatedAt = DateTime.UtcNow,
             });
