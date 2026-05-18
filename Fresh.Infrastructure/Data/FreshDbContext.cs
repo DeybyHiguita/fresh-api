@@ -45,6 +45,13 @@ public class FreshDbContext : DbContext
     public DbSet<Safe> Safes => Set<Safe>();
     public DbSet<SafeTransaction> SafeTransactions => Set<SafeTransaction>();
     public DbSet<AppAlert> AppAlerts => Set<AppAlert>();
+    public DbSet<Investment> Investments => Set<Investment>();
+    public DbSet<InvestmentItem> InvestmentItems => Set<InvestmentItem>();
+    public DbSet<InvestmentNeed> InvestmentNeeds => Set<InvestmentNeed>();
+    public DbSet<InvestmentNeedAssignment> InvestmentNeedAssignments => Set<InvestmentNeedAssignment>();
+    public DbSet<InvestmentNeedItem> InvestmentNeedItems => Set<InvestmentNeedItem>();
+    public DbSet<ProfitDistribution> ProfitDistributions => Set<ProfitDistribution>();
+    public DbSet<ProfitDistributionShare> ProfitDistributionShares => Set<ProfitDistributionShare>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -827,6 +834,136 @@ public class FreshDbContext : DbContext
             entity.HasOne(e => e.CreatedBy).WithMany().HasForeignKey(e => e.CreatedById).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
             entity.HasOne(e => e.PurchaseBatch).WithMany().HasForeignKey(e => e.PurchaseBatchId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
             entity.HasOne(e => e.Expense).WithMany().HasForeignKey(e => e.ExpenseId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        // ── Investment ───────────────────────────────────────────────────────
+        modelBuilder.Entity<Investment>(entity =>
+        {
+            entity.ToTable("investments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.InvestorId).HasColumnName("investor_id").IsRequired();
+            entity.Property(e => e.Amount).HasColumnName("amount").HasPrecision(14, 2).IsRequired();
+            entity.Property(e => e.InvestmentDate).HasColumnName("investment_date").IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("Activo");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.InvestorId).HasDatabaseName("ix_investments_investor_id");
+            entity.HasIndex(e => e.Status).HasDatabaseName("ix_investments_status");
+            entity.HasOne(e => e.Investor).WithMany().HasForeignKey(e => e.InvestorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InvestmentItem>(entity =>
+        {
+            entity.ToTable("investment_items");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.InvestmentId).HasColumnName("investment_id").IsRequired();
+            entity.Property(e => e.ItemType).HasColumnName("item_type").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EquipmentId).HasColumnName("equipment_id");
+            entity.Property(e => e.PurchaseBatchId).HasColumnName("purchase_batch_id");
+            entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(255);
+            entity.Property(e => e.Amount).HasColumnName("amount").HasPrecision(12, 2).IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.InvestmentId).HasDatabaseName("ix_investment_items_investment_id");
+            entity.HasOne(e => e.Investment).WithMany(i => i.Items).HasForeignKey(e => e.InvestmentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Equipment).WithMany().HasForeignKey(e => e.EquipmentId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.PurchaseBatch).WithMany().HasForeignKey(e => e.PurchaseBatchId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        modelBuilder.Entity<InvestmentNeed>(entity =>
+        {
+            entity.ToTable("investment_needs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.ItemType).HasColumnName("item_type").HasMaxLength(50);
+            entity.Property(e => e.EquipmentId).HasColumnName("equipment_id");
+            entity.Property(e => e.PurchaseBatchId).HasColumnName("purchase_batch_id");
+            entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.Property(e => e.TotalNeeded).HasColumnName("total_needed").HasPrecision(14, 2).IsRequired();
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Pendiente");
+            entity.Property(e => e.CreatedById).HasColumnName("created_by_id").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.Status).HasDatabaseName("ix_investment_needs_status");
+            entity.HasOne(e => e.CreatedBy).WithMany().HasForeignKey(e => e.CreatedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Equipment).WithMany().HasForeignKey(e => e.EquipmentId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.PurchaseBatch).WithMany().HasForeignKey(e => e.PurchaseBatchId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        modelBuilder.Entity<InvestmentNeedAssignment>(entity =>
+        {
+            entity.ToTable("investment_need_assignments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.NeedId).HasColumnName("need_id").IsRequired();
+            entity.Property(e => e.InvestorId).HasColumnName("investor_id").IsRequired();
+            entity.Property(e => e.SuggestedAmount).HasColumnName("suggested_amount").HasPrecision(14, 2).IsRequired();
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("Pendiente");
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.InvestmentId).HasColumnName("investment_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.NeedId).HasDatabaseName("ix_inv_need_assignments_need_id");
+            entity.HasIndex(e => e.InvestorId).HasDatabaseName("ix_inv_need_assignments_investor_id");
+            entity.HasOne(e => e.Need).WithMany(n => n.Assignments).HasForeignKey(e => e.NeedId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Investor).WithMany().HasForeignKey(e => e.InvestorId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Investment).WithMany().HasForeignKey(e => e.InvestmentId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        modelBuilder.Entity<InvestmentNeedItem>(entity =>
+        {
+            entity.ToTable("investment_need_items");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.NeedId).HasColumnName("need_id").IsRequired();
+            entity.Property(e => e.ItemType).HasColumnName("item_type").HasMaxLength(50);
+            entity.Property(e => e.EquipmentId).HasColumnName("equipment_id");
+            entity.Property(e => e.PurchaseBatchId).HasColumnName("purchase_batch_id");
+            entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(300);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.NeedId).HasDatabaseName("ix_investment_need_items_need_id");
+            entity.HasOne(e => e.Need).WithMany(n => n.Items).HasForeignKey(e => e.NeedId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Equipment).WithMany().HasForeignKey(e => e.EquipmentId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.PurchaseBatch).WithMany().HasForeignKey(e => e.PurchaseBatchId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+            entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        modelBuilder.Entity<ProfitDistribution>(entity =>
+        {
+            entity.ToTable("profit_distributions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.TotalProfit).HasColumnName("total_profit").HasColumnType("decimal(14,2)").IsRequired();
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.CreatedById).HasColumnName("created_by_id").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.CreatedById).HasDatabaseName("idx_profit_distributions_created_by");
+            entity.HasOne(e => e.CreatedBy).WithMany().HasForeignKey(e => e.CreatedById).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProfitDistributionShare>(entity =>
+        {
+            entity.ToTable("profit_distribution_shares");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.DistributionId).HasColumnName("distribution_id").IsRequired();
+            entity.Property(e => e.InvestorId).HasColumnName("investor_id").IsRequired();
+            entity.Property(e => e.InvestorName).HasColumnName("investor_name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.InvestedCapital).HasColumnName("invested_capital").HasColumnType("decimal(14,2)").IsRequired();
+            entity.Property(e => e.ParticipationPct).HasColumnName("participation_pct").HasColumnType("decimal(8,4)").IsRequired();
+            entity.Property(e => e.ShareAmount).HasColumnName("share_amount").HasColumnType("decimal(14,2)").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.DistributionId).HasDatabaseName("idx_profit_distribution_shares_dist");
+            entity.HasOne(e => e.Distribution).WithMany(d => d.Shares).HasForeignKey(e => e.DistributionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Investor).WithMany().HasForeignKey(e => e.InvestorId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
