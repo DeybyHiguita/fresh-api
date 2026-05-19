@@ -74,21 +74,24 @@ public class GoogleDriveService
     /// <summary>Returns the OAuth2 authorization URL for the consent screen.</summary>
     public string GetAuthorizationUrl(string? returnPath = null)
     {
-        var clientId     = _config["GoogleDrive:ClientId"]     ?? throw new InvalidOperationException("GoogleDrive:ClientId not configured");
-        var clientSecret = _config["GoogleDrive:ClientSecret"] ?? throw new InvalidOperationException("GoogleDrive:ClientSecret not configured");
+        var clientId = _config["GoogleDrive:ClientId"]
+            ?? throw new InvalidOperationException("GoogleDrive:ClientId not configured");
 
-        var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
-        {
-            ClientSecrets = new ClientSecrets { ClientId = clientId, ClientSecret = clientSecret },
-            Scopes = new[] { DriveService.ScopeConstants.DriveFile }
-        });
+        // Build URL manually so we can force prompt=consent and access_type=offline.
+        // This guarantees Google always returns a refresh_token, even if the app was
+        // previously authorized (which would otherwise cause "no refresh token" errors).
+        var state = string.IsNullOrWhiteSpace(returnPath)
+            ? ""
+            : "&state=" + Uri.EscapeDataString(returnPath);
 
-        var request = flow.CreateAuthorizationCodeRequest(RedirectUri);
-        // Pass returnPath as state so Angular knows where to go back after auth
-        if (!string.IsNullOrWhiteSpace(returnPath))
-            request.State = Uri.EscapeDataString(returnPath);
-
-        return request.Build().ToString();
+        return "https://accounts.google.com/o/oauth2/v2/auth"
+            + "?response_type=code"
+            + "&access_type=offline"
+            + "&prompt=consent"
+            + "&client_id=" + Uri.EscapeDataString(clientId)
+            + "&redirect_uri=" + Uri.EscapeDataString(RedirectUri)
+            + "&scope=" + Uri.EscapeDataString("https://www.googleapis.com/auth/drive.file")
+            + state;
     }
 
     /// <summary>Exchanges an authorization code for a refresh token and saves it.</summary>
