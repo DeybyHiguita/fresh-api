@@ -16,6 +16,24 @@ public class DriveSetupController : ControllerBase
         _driveService = driveService;
     }
 
+    /// <summary>Lists subfolders inside the root Drive folder.</summary>
+    [HttpGet("folders")]
+    public async Task<IActionResult> GetFolders()
+    {
+        if (!_driveService.IsAuthorized())
+            return Ok(new { folders = Array.Empty<object>() });
+
+        try
+        {
+            var folders = await _driveService.ListSubfoldersAsync();
+            return Ok(new { folders = folders.Select(f => new { f.Id, f.Name }) });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
     /// <summary>Checks whether Drive is authorized (refresh token exists).</summary>
     [HttpGet("status")]
     public IActionResult GetStatus()

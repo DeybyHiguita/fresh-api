@@ -28,7 +28,7 @@ public class GeminiController : ControllerBase
         _logger = logger;
     }
 
-    public record AnalyzeRequest(string Base64Image, string MimeType, string? FileName);
+    public record AnalyzeRequest(string Base64Image, string MimeType, string? FileName, string? SubFolderId, bool AutoMonthFolder = false);
 
     [HttpPost("analyze-invoice")]
     public async Task<IActionResult> AnalyzeInvoice([FromBody] AnalyzeRequest request)
@@ -103,7 +103,10 @@ Reglas:
         try
         {
             var fileName = request.FileName ?? $"factura_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{MimeToExtension(request.MimeType)}";
-            driveTask = _driveService.UploadInvoiceAsync(request.Base64Image, request.MimeType, fileName);
+            var subFolderId = request.SubFolderId;
+            if (subFolderId is null && request.AutoMonthFolder)
+                subFolderId = await _driveService.GetOrCreateMonthFolderAsync();
+            driveTask = _driveService.UploadInvoiceAsync(request.Base64Image, request.MimeType, fileName, subFolderId);
         }
         catch (Exception ex)
         {
@@ -135,7 +138,7 @@ Reglas:
         return Content(responseBody, "application/json");
     }
 
-    public record UploadOnlyRequest(string Base64Image, string MimeType, string? FileName);
+    public record UploadOnlyRequest(string Base64Image, string MimeType, string? FileName, string? SubFolderId, bool AutoMonthFolder = false);
 
     [HttpPost("upload-to-drive")]
     public async Task<IActionResult> UploadToDrive([FromBody] UploadOnlyRequest request)
@@ -143,7 +146,10 @@ Reglas:
         try
         {
             var fileName = request.FileName ?? $"archivo_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{MimeToExtension(request.MimeType)}";
-            var url = await _driveService.UploadInvoiceAsync(request.Base64Image, request.MimeType, fileName);
+            var subFolderId = request.SubFolderId;
+            if (subFolderId is null && request.AutoMonthFolder)
+                subFolderId = await _driveService.GetOrCreateMonthFolderAsync();
+            var url = await _driveService.UploadInvoiceAsync(request.Base64Image, request.MimeType, fileName, subFolderId);
             return Ok(new { driveFileUrl = url, fileName });
         }
         catch (Exception ex)
