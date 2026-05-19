@@ -33,3 +33,6 @@ appsettings.Development.json
 *.bak
 *.tmp
 Thumbs.db
+
+# Google service account credentials
+Fresh.Api/secrets/

@@ -49,6 +49,8 @@ builder.Services.AddScoped<WhatsappChatService>();
 builder.Services.AddScoped<IWhatsappHubNotifier, WhatsappHubNotifier>();
 builder.Services.AddScoped<ITransferHubNotifier, TransferHubNotifier>();
 builder.Services.AddHttpClient("WhatsApp");
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<Fresh.Api.Services.GoogleDriveService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IUserSessionService, UserSessionService>();
@@ -89,6 +91,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // Controllers + Swagger
+builder.Services.AddHttpClient();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
