@@ -52,6 +52,14 @@ public class FreshDbContext : DbContext
     public DbSet<InvestmentNeedItem> InvestmentNeedItems => Set<InvestmentNeedItem>();
     public DbSet<ProfitDistribution> ProfitDistributions => Set<ProfitDistribution>();
     public DbSet<ProfitDistributionShare> ProfitDistributionShares => Set<ProfitDistributionShare>();
+    
+    // Módulo de Empleados / RRHH
+    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<EmployeeDocumentType> EmployeeDocumentTypes => Set<EmployeeDocumentType>();
+    public DbSet<EmployeeDocument> EmployeeDocuments => Set<EmployeeDocument>();
+    public DbSet<EmployeeChild> EmployeeChildren => Set<EmployeeChild>();
+    public DbSet<EmployeeChildDocument> EmployeeChildDocuments => Set<EmployeeChildDocument>();
+    public DbSet<EmployeeAffiliation> EmployeeAffiliations => Set<EmployeeAffiliation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -964,6 +972,169 @@ public class FreshDbContext : DbContext
             entity.HasIndex(e => e.DistributionId).HasDatabaseName("idx_profit_distribution_shares_dist");
             entity.HasOne(e => e.Distribution).WithMany(d => d.Shares).HasForeignKey(e => e.DistributionId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Investor).WithMany().HasForeignKey(e => e.InvestorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Módulo de Empleados / RRHH ────────────────────────────────────────
+        modelBuilder.Entity<Employee>(entity =>
+        {
+            entity.ToTable("employees");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.FirstName).HasColumnName("first_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.LastName).HasColumnName("last_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.DocumentType).HasColumnName("document_type").HasMaxLength(20).HasDefaultValue("CC");
+            entity.Property(e => e.DocumentNumber).HasColumnName("document_number").HasMaxLength(30).IsRequired();
+            entity.Property(e => e.BirthDate).HasColumnName("birth_date");
+            entity.Property(e => e.Gender).HasColumnName("gender").HasMaxLength(20);
+            entity.Property(e => e.MaritalStatus).HasColumnName("marital_status").HasMaxLength(20);
+            entity.Property(e => e.BloodType).HasColumnName("blood_type").HasMaxLength(5);
+            entity.Property(e => e.Phone).HasColumnName("phone").HasMaxLength(20);
+            entity.Property(e => e.Mobile).HasColumnName("mobile").HasMaxLength(20);
+            entity.Property(e => e.PersonalEmail).HasColumnName("personal_email").HasMaxLength(150);
+            entity.Property(e => e.EmergencyContactName).HasColumnName("emergency_contact_name").HasMaxLength(100);
+            entity.Property(e => e.EmergencyContactPhone).HasColumnName("emergency_contact_phone").HasMaxLength(20);
+            entity.Property(e => e.Address).HasColumnName("address");
+            entity.Property(e => e.City).HasColumnName("city").HasMaxLength(100);
+            entity.Property(e => e.Department).HasColumnName("department").HasMaxLength(100);
+            entity.Property(e => e.Neighborhood).HasColumnName("neighborhood").HasMaxLength(100);
+            entity.Property(e => e.PostalCode).HasColumnName("postal_code").HasMaxLength(20);
+            entity.Property(e => e.Position).HasColumnName("position").HasMaxLength(100);
+            entity.Property(e => e.HireDate).HasColumnName("hire_date");
+            entity.Property(e => e.ContractType).HasColumnName("contract_type").HasMaxLength(50);
+            entity.Property(e => e.Salary).HasColumnName("salary").HasPrecision(12, 2);
+            entity.Property(e => e.PaymentFrequency).HasColumnName("payment_frequency").HasMaxLength(20).HasDefaultValue("monthly");
+            entity.Property(e => e.BankName).HasColumnName("bank_name").HasMaxLength(100);
+            entity.Property(e => e.BankAccountType).HasColumnName("bank_account_type").HasMaxLength(20);
+            entity.Property(e => e.BankAccountNumber).HasColumnName("bank_account_number").HasMaxLength(50);
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(e => e.TerminationDate).HasColumnName("termination_date");
+            entity.Property(e => e.TerminationReason).HasColumnName("termination_reason");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Ignore(e => e.FullName);
+            entity.HasIndex(e => new { e.DocumentType, e.DocumentNumber }).HasDatabaseName("ix_employees_document").IsUnique();
+            entity.HasIndex(e => e.UserId).HasDatabaseName("ix_employees_user");
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.SetNull).IsRequired(false);
+        });
+
+        modelBuilder.Entity<EmployeeDocumentType>(entity =>
+        {
+            entity.ToTable("employee_document_types");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.IsRequired).HasColumnName("is_required").HasDefaultValue(false);
+            entity.Property(e => e.AppliesTo).HasColumnName("applies_to").HasMaxLength(20).HasDefaultValue("employee");
+            entity.Property(e => e.MaxFileSize).HasColumnName("max_file_size").HasDefaultValue(5242880);
+            entity.Property(e => e.AllowedFormats).HasColumnName("allowed_formats").HasMaxLength(100).HasDefaultValue("pdf,jpg,jpeg,png");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<EmployeeDocument>(entity =>
+        {
+            entity.ToTable("employee_documents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id").IsRequired();
+            entity.Property(e => e.DocumentTypeId).HasColumnName("document_type_id").IsRequired();
+            entity.Property(e => e.FileName).HasColumnName("file_name").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.OriginalName).HasColumnName("original_name").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.FilePath).HasColumnName("file_path").HasMaxLength(500);
+            entity.Property(e => e.FileSize).HasColumnName("file_size");
+            entity.Property(e => e.MimeType).HasColumnName("mime_type").HasMaxLength(100);
+            entity.Property(e => e.GoogleDriveFileId).HasColumnName("google_drive_file_id").HasMaxLength(200);
+            entity.Property(e => e.GoogleDriveLink).HasColumnName("google_drive_link").HasMaxLength(500);
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.ExpirationDate).HasColumnName("expiration_date");
+            entity.Property(e => e.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
+            entity.Property(e => e.VerifiedBy).HasColumnName("verified_by");
+            entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
+            entity.Property(e => e.UploadedBy).HasColumnName("uploaded_by");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.EmployeeId).HasDatabaseName("ix_employee_documents_employee_id");
+            entity.HasIndex(e => e.DocumentTypeId).HasDatabaseName("ix_employee_documents_type_id");
+            entity.HasOne(e => e.Employee).WithMany(emp => emp.Documents).HasForeignKey(e => e.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.DocumentType).WithMany().HasForeignKey(e => e.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmployeeChild>(entity =>
+        {
+            entity.ToTable("employee_children");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id").IsRequired();
+            entity.Property(e => e.FirstName).HasColumnName("first_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.LastName).HasColumnName("last_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.DocumentType).HasColumnName("document_type").HasMaxLength(20);
+            entity.Property(e => e.DocumentNumber).HasColumnName("document_number").HasMaxLength(30);
+            entity.Property(e => e.BirthDate).HasColumnName("birth_date");
+            entity.Property(e => e.Gender).HasColumnName("gender").HasMaxLength(20);
+            entity.Property(e => e.IsStudent).HasColumnName("is_student").HasDefaultValue(false);
+            entity.Property(e => e.SchoolName).HasColumnName("school_name").HasMaxLength(150);
+            entity.Property(e => e.HasDisability).HasColumnName("has_disability").HasDefaultValue(false);
+            entity.Property(e => e.DisabilityType).HasColumnName("disability_type").HasMaxLength(100);
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Ignore(e => e.FullName);
+            entity.Ignore(e => e.Age);
+            entity.HasIndex(e => e.EmployeeId).HasDatabaseName("ix_employee_children_employee_id");
+            entity.HasOne(e => e.Employee).WithMany(emp => emp.Children).HasForeignKey(e => e.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EmployeeChildDocument>(entity =>
+        {
+            entity.ToTable("employee_child_documents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.ChildId).HasColumnName("child_id").IsRequired();
+            entity.Property(e => e.DocumentTypeId).HasColumnName("document_type_id").IsRequired();
+            entity.Property(e => e.FileName).HasColumnName("file_name").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.OriginalName).HasColumnName("original_name").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.FilePath).HasColumnName("file_path").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.FileSize).HasColumnName("file_size");
+            entity.Property(e => e.MimeType).HasColumnName("mime_type").HasMaxLength(100);
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.ExpirationDate).HasColumnName("expiration_date");
+            entity.Property(e => e.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
+            entity.Property(e => e.VerifiedBy).HasColumnName("verified_by");
+            entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
+            entity.Property(e => e.UploadedBy).HasColumnName("uploaded_by");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.HasIndex(e => e.ChildId).HasDatabaseName("ix_employee_child_documents_child_id");
+            entity.HasOne(e => e.Child).WithMany(c => c.Documents).HasForeignKey(e => e.ChildId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.DocumentType).WithMany().HasForeignKey(e => e.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmployeeAffiliation>(entity =>
+        {
+            entity.ToTable("employee_affiliations");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id").IsRequired();
+            entity.Property(e => e.AffiliationType).HasColumnName("affiliation_type").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EntityName).HasColumnName("entity_name").HasMaxLength(150).IsRequired();
+            entity.Property(e => e.EntityCode).HasColumnName("entity_code").HasMaxLength(50);
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("active");
+            entity.Property(e => e.AffiliationDate).HasColumnName("affiliation_date");
+            entity.Property(e => e.EffectiveDate).HasColumnName("effective_date");
+            entity.Property(e => e.PlanType).HasColumnName("plan_type").HasMaxLength(100);
+            entity.Property(e => e.CoveragePercentage).HasColumnName("coverage_percentage").HasPrecision(5, 2);
+            entity.Property(e => e.ContributionBase).HasColumnName("contribution_base").HasPrecision(12, 2);
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            entity.Ignore(e => e.AffiliationTypeDisplay);
+            entity.Ignore(e => e.StatusDisplay);
+            entity.HasIndex(e => e.EmployeeId).HasDatabaseName("ix_employee_affiliations_employee_id");
+            entity.HasOne(e => e.Employee).WithMany(emp => emp.Affiliations).HasForeignKey(e => e.EmployeeId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

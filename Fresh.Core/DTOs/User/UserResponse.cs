@@ -8,4 +8,14 @@ public class UserResponse
     public string Role { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    
+    /// <summary>
+    /// Indica si este usuario ya tiene un empleado vinculado
+    /// </summary>
+    public bool HasEmployee { get; set; }
+    
+    /// <summary>
+    /// ID del empleado vinculado (si existe)
+    /// </summary>
+    public int? EmployeeId { get; set; }
 }

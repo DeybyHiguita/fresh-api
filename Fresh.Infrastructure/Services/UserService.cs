@@ -21,6 +21,65 @@ public class UserService : IUserService
         return users.Select(MapToResponse);
     }
 
+    public async Task<IEnumerable<UserResponse>> GetUsersWithoutEmployeeAsync()
+    {
+        // Obtener mapa de usuarios que ya tienen empleado vinculado
+        var employeeByUser = await _context.Employees
+            .Where(e => e.UserId.HasValue)
+            .ToDictionaryAsync(e => e.UserId!.Value, e => e.Id);
+
+        // Obtener todos los usuarios activos
+        var users = await _context.Users
+            .Where(u => u.IsActive)
+            .OrderBy(u => u.Name)
+            .ToListAsync();
+
+        // Retornar todos con indicador de si tienen empleado
+        return users.Select(u => new UserResponse
+        {
+            Id = u.Id,
+            Name = u.Name,
+            Email = u.Email,
+            Role = u.Role,
+            IsActive = u.IsActive,
+            CreatedAt = new DateTimeOffset(u.CreatedAt, TimeSpan.Zero),
+            HasEmployee = employeeByUser.ContainsKey(u.Id),
+            EmployeeId = employeeByUser.TryGetValue(u.Id, out var empId) ? empId : null
+        });
+    }
+
+    public async Task<IEnumerable<UserResponse>> SearchByEmailAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email) || email.Trim().Length < 2)
+            return [];
+
+        var search = email.Trim().ToLower();
+
+        // Mapa de usuarios ya vinculados a un empleado
+        var linkedUserIds = (await _context.Employees
+            .Where(e => e.UserId.HasValue)
+            .Select(e => e.UserId!.Value)
+            .ToListAsync()).ToHashSet();
+
+        var users = await _context.Users
+            .Where(u => u.IsActive && u.Email.ToLower().Contains(search))
+            .OrderBy(u => u.Email)
+            .Take(20)
+            .ToListAsync();
+
+        return users.Select(u => new UserResponse
+        {
+            Id = u.Id,
+            Name = u.Name,
+            Email = u.Email,
+            Role = u.Role,
+            IsActive = u.IsActive,
+            CreatedAt = new DateTimeOffset(u.CreatedAt, TimeSpan.Zero),
+            HasEmployee = linkedUserIds.Contains(u.Id),
+            EmployeeId = null
+        });
+    }
+
     public async Task<UserResponse?> GetByIdAsync(int id)
     {
         var user = await _context.Users.FindAsync(id);

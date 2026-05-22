@@ -17,6 +17,14 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<IEnumerable<UserResponse>>> GetAll([FromQuery] bool onlyActive = true)
         => Ok(await _service.GetAllAsync(onlyActive));
 
+    [HttpGet("available-for-employee")]
+    public async Task<ActionResult<IEnumerable<UserResponse>>> GetUsersWithoutEmployee()
+        => Ok(await _service.GetUsersWithoutEmployeeAsync());
+
+    [HttpGet("search")]
+    public async Task<ActionResult<IEnumerable<UserResponse>>> Search([FromQuery] string email = "")
+        => Ok(await _service.SearchByEmailAsync(email));
+
     [HttpGet("{id}")]
     public async Task<ActionResult<UserResponse>> GetById(int id)
     {

@@ -14,6 +14,10 @@ public class TransferHubNotifier : ITransferHubNotifier
         _hub = hub;
     }
 
-    public Task NotifyTransferReceivedAsync(TransferNotificationDto notification)
-        => _hub.Clients.Group("admins").SendAsync("TransferReceived", notification);
+    public async Task NotifyTransferReceivedAsync(TransferNotificationDto notification)
+    {
+        // Enviar a admins Y a usuarios con caja abierta
+        await _hub.Clients.Group("admins").SendAsync("TransferReceived", notification);
+        await _hub.Clients.Group("cash-open").SendAsync("TransferReceived", notification);
+    }
 }

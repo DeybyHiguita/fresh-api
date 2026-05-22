@@ -51,9 +51,17 @@ builder.Services.AddScoped<ITransferHubNotifier, TransferHubNotifier>();
 builder.Services.AddHttpClient("WhatsApp");
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<Fresh.Api.Services.GoogleDriveService>();
+builder.Services.AddSingleton<IGoogleDriveService, Fresh.Infrastructure.Services.GoogleDriveService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IUserSessionService, UserSessionService>();
+
+// Módulo de Empleados / RRHH
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+builder.Services.AddScoped<IEmployeeDocumentTypeService, EmployeeDocumentTypeService>();
+builder.Services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
+builder.Services.AddScoped<IEmployeeChildService, EmployeeChildService>();
+builder.Services.AddScoped<IEmployeeAffiliationService, EmployeeAffiliationService>();
 
 // JWT Authentication
 builder.Services.AddSignalR();
