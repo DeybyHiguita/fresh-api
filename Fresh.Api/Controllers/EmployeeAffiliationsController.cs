@@ -103,7 +103,7 @@ public class EmployeeAffiliationsController : ControllerBase
         }
     }
 
-    /// <summary>
+    /// <summaryxx    
     /// Elimina una afiliación
     /// </summary>
     [HttpDelete("{id}")]

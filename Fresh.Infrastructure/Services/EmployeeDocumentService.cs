@@ -125,7 +125,7 @@ public class EmployeeDocumentService : IEmployeeDocumentService
         return await MapToResponseAsync(document);
     }
 
-    public async Task<EmployeeDocumentResponse?> UpdateAsync(int id, EmployeeDocumentRequest request)
+    public async Task<EmployeeDocumentResponse?> UpdateAsync(int id, IFormFile? file, EmployeeDocumentRequest request)
     {
         var document = await _context.EmployeeDocuments
             .Include(d => d.Employee)
@@ -134,11 +134,80 @@ public class EmployeeDocumentService : IEmployeeDocumentService
 
         if (document is null) return null;
 
+        var newDocumentType = await _context.EmployeeDocumentTypes.FindAsync(request.DocumentTypeId);
+        if (newDocumentType is null)
+            throw new InvalidOperationException("Tipo de documento no encontrado");
+
+        string? newDriveFileId = null;
+        string? newDriveLink = null;
+        string? previousDriveFileId = null;
+
+        if (file is not null && file.Length > 0)
+        {
+            if (file.Length > newDocumentType.MaxFileSize)
+            {
+                throw new InvalidOperationException(
+                    $"El archivo excede el tamaño máximo permitido de {newDocumentType.MaxFileSize / 1048576}MB");
+            }
+
+            var extension = Path.GetExtension(file.FileName).TrimStart('.').ToLower();
+            var allowedFormats = newDocumentType.AllowedFormats.Split(',').Select(f => f.Trim().ToLower());
+            if (!allowedFormats.Contains(extension))
+            {
+                throw new InvalidOperationException($"Formato no permitido. Formatos válidos: {newDocumentType.AllowedFormats}");
+            }
+
+            var employeeFolderName = document.Employee?.FullName ?? $"Empleado {document.EmployeeId}";
+            var folderId = await _driveService.GetOrCreateEmployeeFolderAsync(document.EmployeeId, employeeFolderName);
+
+            using var stream = file.OpenReadStream();
+            var result = await _driveService.UploadFileAsync(
+                folderId,
+                file.FileName,
+                file.ContentType,
+                stream);
+
+            newDriveFileId = result.fileId;
+            newDriveLink = result.webLink;
+            previousDriveFileId = document.GoogleDriveFileId;
+
+            document.FileName = $"{Guid.NewGuid():N}.{extension}";
+            document.OriginalName = file.FileName;
+            document.FileSize = (int)file.Length;
+            document.MimeType = file.ContentType;
+            document.GoogleDriveFileId = newDriveFileId;
+            document.GoogleDriveLink = newDriveLink;
+            document.IsVerified = false;
+            document.VerifiedBy = null;
+            document.VerifiedAt = null;
+        }
+
+        document.DocumentTypeId = request.DocumentTypeId;
         document.Notes = request.Notes;
         document.ExpirationDate = request.ExpirationDate;
         document.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            if (!string.IsNullOrWhiteSpace(newDriveFileId))
+            {
+                await _driveService.DeleteFileAsync(newDriveFileId);
+            }
+
+            throw;
+        }
+
+        if (!string.IsNullOrWhiteSpace(previousDriveFileId) && previousDriveFileId != newDriveFileId)
+        {
+            await _driveService.DeleteFileAsync(previousDriveFileId);
+        }
+
+        await _context.Entry(document).Reference(d => d.Employee).LoadAsync();
+        await _context.Entry(document).Reference(d => d.DocumentType).LoadAsync();
 
         return await MapToResponseAsync(document);
     }

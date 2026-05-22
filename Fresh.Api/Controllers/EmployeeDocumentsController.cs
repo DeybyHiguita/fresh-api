@@ -105,15 +105,17 @@ public class EmployeeDocumentsController : ControllerBase
     /// Actualiza metadatos de un documento
     /// </summary>
     [HttpPut("{id}")]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult<EmployeeDocumentResponse>> Update(
         int employeeId,
         int id,
-        [FromBody] EmployeeDocumentRequest request)
+        [FromForm] EmployeeDocumentRequest request,
+        [FromForm] IFormFile? file)
     {
         if (!await CanAccessEmployeeAsync(employeeId))
             return Forbid();
 
-        var document = await _service.UpdateAsync(id, request);
+        var document = await _service.UpdateAsync(id, file, request);
         if (document is null)
             return NotFound(new { message = "Documento no encontrado" });
 

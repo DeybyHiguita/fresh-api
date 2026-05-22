@@ -33,6 +33,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "admin")]
     public async Task<ActionResult<UserResponse>> Update(int id, [FromBody] UserUpdateRequest request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);

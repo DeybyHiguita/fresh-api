@@ -1,5 +1,7 @@
 using Fresh.Core.Interfaces;
 using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using Microsoft.Extensions.Configuration;
@@ -9,60 +11,74 @@ namespace Fresh.Infrastructure.Services;
 
 public class GoogleDriveService : IGoogleDriveService
 {
-    private readonly DriveService _driveService;
+    private readonly IConfiguration _configuration;
     private readonly string _rootFolderId;
     private readonly ILogger<GoogleDriveService> _logger;
     private readonly Dictionary<int, string> _employeeFolderCache = new();
+    private static readonly string TokenFilePath = Path.Combine(
+        AppContext.BaseDirectory, "secrets", "drive-refresh-token.txt");
 
     public GoogleDriveService(IConfiguration configuration, ILogger<GoogleDriveService> logger)
     {
+        _configuration = configuration;
         _logger = logger;
-        
+
         // ID de la carpeta raíz en Google Drive para documentos de empleados
-        _rootFolderId = configuration["GoogleDrive:EmployeeDocumentsFolderId"] 
-            ?? configuration["GoogleDrive:RootFolderId"] 
+        _rootFolderId = configuration["GoogleDrive:EmployeeDocumentsFolderId"]
+            ?? configuration["GoogleDrive:FolderId"]
+            ?? configuration["GoogleDrive:RootFolderId"]
             ?? throw new InvalidOperationException("GoogleDrive:EmployeeDocumentsFolderId no está configurado");
-        
-        // Ruta al archivo de credenciales de la cuenta de servicio
-        var credentialsPath = configuration["GoogleDrive:ServiceAccountKeyPath"] 
-            ?? configuration["GoogleDrive:CredentialsPath"] 
-            ?? "secrets/google-drive-service-account.json";
-
-        GoogleCredential credential;
-        
-        // Intentar cargar credenciales desde archivo o variable de entorno
-        var credentialsJson = configuration["GoogleDrive:CredentialsJson"];
-        if (!string.IsNullOrEmpty(credentialsJson))
-        {
-            // Credenciales desde variable de entorno (para producción)
-            credential = GoogleCredential.FromJson(credentialsJson)
-                .CreateScoped(DriveService.Scope.DriveFile);
-        }
-        else if (File.Exists(credentialsPath))
-        {
-            // Credenciales desde archivo (para desarrollo)
-            using var stream = new FileStream(credentialsPath, FileMode.Open, FileAccess.Read);
-            credential = GoogleCredential.FromStream(stream)
-                .CreateScoped(DriveService.Scope.DriveFile);
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                $"No se encontraron credenciales de Google Drive. " +
-                $"Configure GoogleDrive:CredentialsJson o coloque el archivo en {credentialsPath}");
-        }
-
-        _driveService = new DriveService(new BaseClientService.Initializer
-        {
-            HttpClientInitializer = credential,
-            ApplicationName = "Fresh App"
-        });
 
         _logger.LogInformation("Google Drive Service inicializado. Carpeta raíz: {RootFolderId}", _rootFolderId);
     }
 
+    private string? GetRefreshToken()
+    {
+        if (File.Exists(TokenFilePath))
+        {
+            var token = File.ReadAllText(TokenFilePath).Trim();
+            if (!string.IsNullOrEmpty(token))
+            {
+                return token;
+            }
+        }
+
+        return _configuration["GoogleDrive:RefreshToken"];
+    }
+
+    private DriveService BuildDriveService()
+    {
+        var clientId = _configuration["GoogleDrive:ClientId"]
+            ?? throw new InvalidOperationException("GoogleDrive:ClientId no está configurado");
+        var clientSecret = _configuration["GoogleDrive:ClientSecret"]
+            ?? throw new InvalidOperationException("GoogleDrive:ClientSecret no está configurado");
+        var refreshToken = GetRefreshToken();
+
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new InvalidOperationException(
+                "Drive no está autorizado. Conéctalo desde la pantalla de Facturas para reutilizar la misma sesión.");
+        }
+
+        var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+        {
+            ClientSecrets = new ClientSecrets { ClientId = clientId, ClientSecret = clientSecret },
+            Scopes = new[] { DriveService.ScopeConstants.DriveFile }
+        });
+
+        var token = new TokenResponse { RefreshToken = refreshToken };
+        var credential = new UserCredential(flow, "user", token);
+
+        return new DriveService(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = "Fresh App"
+        });
+    }
+
     public async Task<string> CreateFolderAsync(string folderName)
     {
+        var driveService = BuildDriveService();
         var folderMetadata = new Google.Apis.Drive.v3.Data.File
         {
             Name = folderName,
@@ -70,7 +86,7 @@ public class GoogleDriveService : IGoogleDriveService
             Parents = new List<string> { _rootFolderId }
         };
 
-        var request = _driveService.Files.Create(folderMetadata);
+        var request = driveService.Files.Create(folderMetadata);
         request.Fields = "id";
         
         var folder = await request.ExecuteAsync();
@@ -82,6 +98,7 @@ public class GoogleDriveService : IGoogleDriveService
 
     public async Task<string> GetOrCreateEmployeeFolderAsync(int employeeId, string employeeName)
     {
+        var driveService = BuildDriveService();
         // Verificar caché en memoria
         if (_employeeFolderCache.TryGetValue(employeeId, out var cachedFolderId))
         {
@@ -92,7 +109,7 @@ public class GoogleDriveService : IGoogleDriveService
         var folderName = $"{employeeId}_{SanitizeFolderName(employeeName)}";
 
         // Buscar si ya existe la carpeta
-        var listRequest = _driveService.Files.List();
+        var listRequest = driveService.Files.List();
         listRequest.Q = $"mimeType='application/vnd.google-apps.folder' and name='{folderName}' and '{_rootFolderId}' in parents and trashed=false";
         listRequest.Fields = "files(id, name)";
         
@@ -118,6 +135,7 @@ public class GoogleDriveService : IGoogleDriveService
         string contentType, 
         Stream fileStream)
     {
+        var driveService = BuildDriveService();
         // Generar GUID para el nombre del archivo
         var fileGuid = Guid.NewGuid().ToString();
         var extension = Path.GetExtension(fileName);
@@ -130,7 +148,7 @@ public class GoogleDriveService : IGoogleDriveService
             Description = $"Original: {fileName}"
         };
 
-        var request = _driveService.Files.Create(fileMetadata, fileStream, contentType);
+        var request = driveService.Files.Create(fileMetadata, fileStream, contentType);
         request.Fields = "id, webViewLink, webContentLink";
         
         var progress = await request.UploadAsync();
@@ -153,7 +171,8 @@ public class GoogleDriveService : IGoogleDriveService
 
     public async Task<Stream> DownloadFileAsync(string fileId)
     {
-        var request = _driveService.Files.Get(fileId);
+        var driveService = BuildDriveService();
+        var request = driveService.Files.Get(fileId);
         var memoryStream = new MemoryStream();
         
         await request.DownloadAsync(memoryStream);
@@ -166,7 +185,8 @@ public class GoogleDriveService : IGoogleDriveService
     {
         try
         {
-            await _driveService.Files.Delete(fileId).ExecuteAsync();
+            var driveService = BuildDriveService();
+            await driveService.Files.Delete(fileId).ExecuteAsync();
             _logger.LogInformation("Archivo eliminado de Google Drive: {FileId}", fileId);
         }
         catch (Exception ex)
@@ -178,7 +198,8 @@ public class GoogleDriveService : IGoogleDriveService
 
     public async Task<string> GetFileWebLinkAsync(string fileId)
     {
-        var request = _driveService.Files.Get(fileId);
+        var driveService = BuildDriveService();
+        var request = driveService.Files.Get(fileId);
         request.Fields = "webViewLink, webContentLink";
         
         var file = await request.ExecuteAsync();
@@ -188,13 +209,14 @@ public class GoogleDriveService : IGoogleDriveService
 
     private async Task SetFilePermissionsAsync(string fileId)
     {
+        var driveService = BuildDriveService();
         var permission = new Google.Apis.Drive.v3.Data.Permission
         {
             Type = "anyone",
             Role = "reader"
         };
 
-        await _driveService.Permissions.Create(permission, fileId).ExecuteAsync();
+        await driveService.Permissions.Create(permission, fileId).ExecuteAsync();
     }
 
     private static string SanitizeFolderName(string name)

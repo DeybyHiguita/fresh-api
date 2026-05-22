@@ -2,10 +2,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fresh.Core\Fresh.Core.csproj" />
-  </ItemGroup>
 
-  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.74.0" />
     <PackageReference Include="Google.Apis.Drive.v3" Version="1.68.0.3591" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.13" />

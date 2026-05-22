@@ -199,7 +199,12 @@ public class EmployeeService : IEmployeeService
                 throw new InvalidOperationException("Ya existe un empleado con ese documento");
         }
 
-        employee.UserId = request.UserId;
+        // El `UserId` no se puede cambiar desde este endpoint de actualización.
+        // Para vincular o desvincular usuarios use los endpoints dedicados LinkUser/UnlinkUser.
+        if (request.UserId.HasValue && request.UserId != employee.UserId)
+        {
+            throw new InvalidOperationException("No está permitido cambiar el usuario asignado aquí. Use el endpoint de vinculación de usuario (LinkUser) para asignar otro usuario.");
+        }
         employee.FirstName = request.FirstName;
         employee.LastName = request.LastName;
         employee.DocumentType = request.DocumentType;
