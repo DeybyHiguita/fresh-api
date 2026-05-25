@@ -199,7 +199,7 @@ public class CustomerCreditService : ICustomerCreditService
         return await GetByCustomerIdAsync(credit.CustomerId) ?? throw new Exception("Error mapeando crédito.");
     }
 
-    public async Task<CustomerCreditResponse?> RegisterPurchaseAsync(int customerId, decimal purchaseAmount)
+    public async Task<CustomerCreditResponse?> RegisterPurchaseAsync(int customerId, decimal purchaseAmount, int? orderId = null)
     {
         var credit = await _context.CustomerCredits.FirstOrDefaultAsync(c => c.CustomerId == customerId);
         if (credit == null) throw new InvalidOperationException("El cliente no tiene cuenta de crédito autorizada.");
@@ -209,10 +209,28 @@ public class CustomerCreditService : ICustomerCreditService
         if ((credit.CurrentBalance + purchaseAmount) > credit.CreditLimit)
             throw new InvalidOperationException($"La compra excede el límite de crédito disponible (${credit.CreditLimit - credit.CurrentBalance}).");
 
+        decimal balanceBefore = credit.CurrentBalance;
         credit.CurrentBalance += purchaseAmount;
         credit.Status = credit.CurrentBalance <= 0 ? "Al día" : "Con deuda";
         credit.UpdatedAt = DateTimeOffset.UtcNow;
         _context.CustomerCredits.Update(credit);
+
+        var description = orderId.HasValue
+            ? $"Compra - Orden #{orderId.Value}"
+            : "Compra registrada manualmente";
+
+        _context.CreditTransactions.Add(new CreditTransaction
+        {
+            CustomerCreditId = credit.Id,
+            OrderId = orderId,
+            Type = "Cargo",
+            Amount = purchaseAmount,
+            BalanceBefore = balanceBefore,
+            BalanceAfter = credit.CurrentBalance,
+            Description = description,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
         await _context.SaveChangesAsync();
 
         return await GetByCustomerIdAsync(customerId);

@@ -1,3 +1,3 @@
 namespace Fresh.Core.DTOs.Order;
 
-public record UpdatePaymentMethodRequest(string PaymentMethod);
+public record UpdatePaymentMethodRequest(string PaymentMethod, int? CustomerId = null);

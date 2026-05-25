@@ -11,11 +11,13 @@ public class OrderService : IOrderService
 {
     private readonly FreshDbContext _context;
     private readonly IInvoiceService _invoiceService;
+    private readonly ICustomerCreditService _customerCreditService;
 
-    public OrderService(FreshDbContext context, IInvoiceService invoiceService)
+    public OrderService(FreshDbContext context, IInvoiceService invoiceService, ICustomerCreditService customerCreditService)
     {
         _context = context;
         _invoiceService = invoiceService;
+        _customerCreditService = customerCreditService;
     }
 
     public async Task<IEnumerable<OrderResponse>> GetAllAsync()
@@ -45,6 +47,8 @@ public class OrderService : IOrderService
 
     public async Task<OrderResponse> CreateAsync(OrderRequest request)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
         // Validar que el usuario (cajero) exista
         var userExists = await _context.Users.AnyAsync(u => u.Id == request.UserId);
         if (!userExists) throw new KeyNotFoundException($"El usuario con ID {request.UserId} no existe.");
@@ -125,6 +129,13 @@ public class OrderService : IOrderService
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
+        if (request.PaymentMethod == "Crédito" && order.CustomerId.HasValue)
+        {
+            await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, order.Total, order.Id);
+        }
+
+        await transaction.CommitAsync();
+
         return await GetByIdAsync(order.Id) ?? throw new Exception("Error al recuperar la orden creada.");
     }
 
@@ -155,33 +166,15 @@ public class OrderService : IOrderService
             order.Notes = notes;
         _context.Orders.Update(order);
 
-        // Descontar crédito cuando la orden es entregada
+        // Descontar crédito cuando la orden es entregada, solo si aún no se cargó al crearla
         if (newStatus == "Entregado" && order.CustomerId.HasValue && order.PaymentMethod == "Crédito")
         {
-            var customerCredit = order.Customer?.CreditInfo;
-            if (customerCredit != null)
+            var alreadyCharged = await _context.CreditTransactions
+                .AnyAsync(t => t.OrderId == order.Id && t.Type == "Cargo");
+
+            if (!alreadyCharged)
             {
-                decimal balanceBefore = customerCredit.CurrentBalance;
-                customerCredit.CurrentBalance += order.Total;
-                customerCredit.Status = customerCredit.CurrentBalance >= customerCredit.CreditLimit
-                    ? "Límite alcanzado"
-                    : customerCredit.CurrentBalance > 0 ? "Con deuda" : "Al día";
-                customerCredit.UpdatedAt = DateTimeOffset.UtcNow;
-                _context.CustomerCredits.Update(customerCredit);
-
-                await _context.SaveChangesAsync();
-
-                _context.CreditTransactions.Add(new CreditTransaction
-                {
-                    CustomerCreditId = customerCredit.Id,
-                    OrderId = order.Id,
-                    Type = "Cargo",
-                    Amount = order.Total,
-                    BalanceBefore = balanceBefore,
-                    BalanceAfter = customerCredit.CurrentBalance,
-                    Description = $"Compra - Orden #{order.Id}",
-                    CreatedAt = DateTimeOffset.UtcNow
-                });
+                await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, order.Total, order.Id);
             }
         }
 
@@ -207,32 +200,77 @@ public class OrderService : IOrderService
         return await GetByIdAsync(id);
     }
 
-    public async Task<OrderResponse?> UpdatePaymentMethodAsync(int id, string paymentMethod)
+    public async Task<OrderResponse?> UpdatePaymentMethodAsync(int id, string paymentMethod, int? customerId = null)
     {
-        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == id);
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var order = await _context.Orders
+            .Include(o => o.Customer)
+                .ThenInclude(c => c!.CreditInfo)
+            .FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) throw new KeyNotFoundException($"Orden {id} no encontrada.");
 
         if (order.Status == "Cancelado")
             throw new InvalidOperationException("No se puede cambiar el medio de pago de una orden cancelada.");
 
+        if (string.IsNullOrWhiteSpace(paymentMethod))
+            throw new InvalidOperationException("El medio de pago no puede estar vacío.");
+
+        if (paymentMethod == "Crédito")
+        {
+            var targetCustomerId = customerId ?? order.CustomerId
+                ?? throw new InvalidOperationException("Debes seleccionar un cliente para usar pago a crédito.");
+
+            var customer = await _context.Customers
+                .Include(c => c.CreditInfo)
+                .FirstOrDefaultAsync(c => c.Id == targetCustomerId && c.IsActive);
+
+            if (customer == null)
+                throw new KeyNotFoundException($"El cliente con ID {targetCustomerId} no existe o está inactivo.");
+
+            if (customer.CreditInfo == null)
+                throw new InvalidOperationException("El cliente no tiene cuenta de crédito configurada.");
+
+            order.CustomerId = customer.Id;
+            order.CustomerName = string.IsNullOrWhiteSpace(order.CustomerName)
+                ? $"{customer.FirstName} {customer.LastName}"
+                : order.CustomerName;
+            order.CustomerPhone = string.IsNullOrWhiteSpace(order.CustomerPhone)
+                ? customer.Phone
+                : order.CustomerPhone;
+
+            var alreadyCharged = await _context.CreditTransactions
+                .AnyAsync(t => t.OrderId == order.Id && t.Type == "Cargo");
+
+            if (!alreadyCharged)
+            {
+                await _customerCreditService.RegisterPurchaseAsync(customer.Id, order.Total, order.Id);
+            }
+        }
+
         order.PaymentMethod = paymentMethod;
         order.UpdatedAt = DateTimeOffset.UtcNow;
         _context.Orders.Update(order);
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return await GetByIdAsync(id);
     }
 
     public async Task<OrderResponse?> UpdateItemsAsync(int id, List<OrderItemRequest> items)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
         var order = await _context.Orders
+            .Include(o => o.Customer)
+                .ThenInclude(c => c!.CreditInfo)
             .Include(o => o.OrderItems)
             .FirstOrDefaultAsync(o => o.Id == id);
 
         if (order == null) throw new KeyNotFoundException($"Orden {id} no encontrada.");
 
-        if (order.Status is "Cancelado" or "Entregado")
-            throw new InvalidOperationException("No se pueden modificar los productos de una orden que ya fue entregada o cancelada.");
+        if (order.Status == "Cancelado")
+            throw new InvalidOperationException("No se pueden modificar los productos de una orden cancelada.");
 
         // Validar que los productos existan
         var menuItemIds = items.Select(i => i.MenuItemId).ToList();
@@ -258,13 +296,8 @@ public class OrderService : IOrderService
         await _context.OrderItems.AddRangeAsync(newItems);
 
         // Recalcular totales
-        decimal surcharge = order.OrderType == "Delivery"
-            ? order.Total - order.Subtotal + order.Discount  // mantener surcharge existente si lo hay
-            : 0m;
+        decimal oldTotal = order.Total;
         decimal subtotal = newItems.Sum(i => i.Subtotal);
-        // Recalcular surcharge correctamente: total = subtotal + surcharge - discount
-        // Si existía surcharge = oldTotal - oldSubtotal + discount
-        // Simplificamos: recalcular subtotal y mantener discount; surcharge = oldSurcharge
         decimal oldSurcharge = order.Total - order.Subtotal + order.Discount;
         if (oldSurcharge < 0) oldSurcharge = 0;
         decimal newTotal = subtotal + oldSurcharge - order.Discount;
@@ -275,7 +308,65 @@ public class OrderService : IOrderService
         order.UpdatedAt  = DateTimeOffset.UtcNow;
         _context.Orders.Update(order);
 
+        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.OrderId == order.Id);
+        if (invoice != null)
+        {
+            invoice.Subtotal = newTotal;
+            invoice.TotalAmount = newTotal + invoice.TaxAmount;
+            invoice.DiscountAmount = order.Discount;
+            invoice.CustomerName = order.CustomerName;
+            invoice.UpdatedAt = DateTimeOffset.UtcNow;
+
+            if (invoice.PaymentMethod.Equals("Efectivo", StringComparison.OrdinalIgnoreCase))
+            {
+                invoice.ChangeAmount = Math.Max(0m, invoice.CashTendered - invoice.TotalAmount);
+            }
+
+            _context.Invoices.Update(invoice);
+        }
+
+        if (order.PaymentMethod == "Crédito" && order.CustomerId.HasValue)
+        {
+            var customerCredit = order.Customer?.CreditInfo
+                ?? throw new InvalidOperationException("El cliente no tiene cuenta de crédito configurada.");
+
+            var creditTransactionExists = await _context.CreditTransactions
+                .AnyAsync(t => t.OrderId == order.Id && t.Type == "Cargo");
+
+            if (creditTransactionExists)
+            {
+                decimal difference = newTotal - oldTotal;
+                if (difference != 0)
+                {
+                    decimal balanceBefore = customerCredit.CurrentBalance;
+                    customerCredit.CurrentBalance += difference;
+                    customerCredit.Status = customerCredit.CurrentBalance >= customerCredit.CreditLimit
+                        ? "Límite alcanzado"
+                        : customerCredit.CurrentBalance > 0 ? "Con deuda" : "Al día";
+                    customerCredit.UpdatedAt = DateTimeOffset.UtcNow;
+                    _context.CustomerCredits.Update(customerCredit);
+
+                    _context.CreditTransactions.Add(new CreditTransaction
+                    {
+                        CustomerCreditId = customerCredit.Id,
+                        OrderId = order.Id,
+                        Type = "Ajuste",
+                        Amount = difference,
+                        BalanceBefore = balanceBefore,
+                        BalanceAfter = customerCredit.CurrentBalance,
+                        Description = $"Ajuste por edición de la orden #{order.Id}",
+                        CreatedAt = DateTimeOffset.UtcNow
+                    });
+                }
+            }
+            else if (order.Status == "Entregado")
+            {
+                await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, newTotal, order.Id);
+            }
+        }
+
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return await GetByIdAsync(id);
     }

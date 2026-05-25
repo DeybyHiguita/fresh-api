@@ -97,7 +97,7 @@ public class OrdersController : ControllerBase
         }
     }
 
-    [Authorize]
+    [Authorize(Roles = "admin")]
     [HttpPatch("{id}/payment-method")]
     public async Task<ActionResult<OrderResponse>> UpdatePaymentMethod(int id, [FromBody] UpdatePaymentMethodRequest request)
     {
@@ -106,7 +106,7 @@ public class OrdersController : ControllerBase
 
         try
         {
-            var order = await _orderService.UpdatePaymentMethodAsync(id, request.PaymentMethod);
+            var order = await _orderService.UpdatePaymentMethodAsync(id, request.PaymentMethod, request.CustomerId);
             return Ok(order);
         }
         catch (KeyNotFoundException ex)
@@ -119,7 +119,7 @@ public class OrdersController : ControllerBase
         }
     }
 
-    [Authorize]
+    [Authorize(Roles = "admin")]
     [HttpPatch("{id}/items")]
     public async Task<ActionResult<OrderResponse>> UpdateItems(int id, [FromBody] UpdateOrderItemsRequest request)
     {
