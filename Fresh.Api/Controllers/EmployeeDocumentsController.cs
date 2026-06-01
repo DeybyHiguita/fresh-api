@@ -70,6 +70,7 @@ public class EmployeeDocumentsController : ControllerBase
     /// Sube un nuevo documento
     /// </summary>
     [HttpPost]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult<EmployeeDocumentResponse>> Upload(
         int employeeId,
         IFormFile file,
@@ -109,11 +110,20 @@ public class EmployeeDocumentsController : ControllerBase
     public async Task<ActionResult<EmployeeDocumentResponse>> Update(
         int employeeId,
         int id,
-        [FromForm] EmployeeDocumentRequest request,
-        [FromForm] IFormFile? file)
+        [FromForm] int documentTypeId,
+        [FromForm] string? notes,
+        [FromForm] DateTime? expirationDate,
+        IFormFile? file)
     {
         if (!await CanAccessEmployeeAsync(employeeId))
             return Forbid();
+
+        var request = new EmployeeDocumentRequest
+        {
+            DocumentTypeId = documentTypeId,
+            Notes = notes,
+            ExpirationDate = expirationDate
+        };
 
         var document = await _service.UpdateAsync(id, file, request);
         if (document is null)

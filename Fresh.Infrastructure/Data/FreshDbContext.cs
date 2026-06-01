@@ -608,6 +608,8 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("Completada");
 
             entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.DeliveryPlatform).HasColumnName("delivery_platform").HasMaxLength(50);
+            entity.Property(e => e.PlatformPayment).HasColumnName("platform_payment").HasPrecision(18, 2);
             entity.Property(e => e.IsCreditPaid).HasColumnName("is_credit_paid").HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");

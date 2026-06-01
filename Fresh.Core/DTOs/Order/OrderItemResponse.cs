@@ -26,6 +26,8 @@ public class OrderResponse
     public string PaymentMethod { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string? Notes { get; set; }
+    public string? DeliveryPlatform { get; set; }
+    public decimal? PlatformPayment { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public List<OrderItemResponse> Items { get; set; } = [];

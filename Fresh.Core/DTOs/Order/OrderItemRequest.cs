@@ -53,6 +53,14 @@ public class OrderRequest
 
     public string? Notes { get; set; }
 
+    /// <summary>Plataforma de domicilio (Rappi, Didi, etc.). Nulo si es domicilio propio.</summary>
+    [MaxLength(50)]
+    public string? DeliveryPlatform { get; set; }
+
+    /// <summary>Valor real que paga la plataforma (puede diferir del total de la orden).</summary>
+    [Range(0, double.MaxValue)]
+    public decimal? PlatformPayment { get; set; }
+
     [Required]
     [MinLength(1, ErrorMessage = "La orden debe tener al menos un producto.")]
     public List<OrderItemRequest> Items { get; set; } = [];

@@ -217,6 +217,9 @@ using (var scope = app.Services.CreateScope())
             INSERT INTO app_settings (key, value, description)
             VALUES ('whatsapp_notifications_enabled', 'false', 'Enviar notificación por WhatsApp al administrador cuando se crea una orden')
             ON CONFLICT (key) DO NOTHING;
+
+            ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_platform VARCHAR(50);
+            ALTER TABLE orders ADD COLUMN IF NOT EXISTS platform_payment NUMERIC(18,2);
         ");
     }
     catch (Exception ex)

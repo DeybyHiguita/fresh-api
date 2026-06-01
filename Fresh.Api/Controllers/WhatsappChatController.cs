@@ -54,7 +54,7 @@ public class WhatsappChatController : ControllerBase
     [RequestSizeLimit(25 * 1024 * 1024)] // 25 MB (límite de Meta)
     public async Task<ActionResult<WhatsappMessageDto>> SendMedia(
         [FromForm] int contactId,
-        [FromForm] IFormFile file)
+        IFormFile file)
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Archivo vacío." });

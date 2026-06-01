@@ -112,6 +112,8 @@ public class OrderService : IOrderService
             PaymentMethod = request.PaymentMethod,
             Status = "Pendiente",
             Notes = request.Notes,
+            DeliveryPlatform = request.OrderType == "Delivery" ? request.DeliveryPlatform : null,
+            PlatformPayment = request.OrderType == "Delivery" ? request.PlatformPayment : null,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             OrderItems = request.Items.Select(i => new OrderItem
@@ -412,6 +414,8 @@ public class OrderService : IOrderService
         PaymentMethod = o.PaymentMethod,
         Status = o.Status,
         Notes = o.Notes,
+        DeliveryPlatform = o.DeliveryPlatform,
+        PlatformPayment = o.PlatformPayment,
         CreatedAt = o.CreatedAt,
         UpdatedAt = o.UpdatedAt,
         Items = o.OrderItems.Select(oi => new OrderItemResponse
