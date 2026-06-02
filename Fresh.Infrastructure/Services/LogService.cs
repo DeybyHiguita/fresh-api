@@ -49,6 +49,12 @@ public class LogService : ILogService
         if (filter.To.HasValue)
             query = query.Where(l => l.LogDate <= filter.To.Value);
 
+        if (filter.HasException == true)
+            query = query.Where(l => l.Exception != null && l.Exception != string.Empty);
+
+        if (filter.HasException == false)
+            query = query.Where(l => l.Exception == null || l.Exception == string.Empty);
+
         var totalCount = await query.CountAsync();
 
         var items = await query

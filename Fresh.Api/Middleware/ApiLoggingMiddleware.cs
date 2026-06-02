@@ -1,22 +1,27 @@
-﻿using System.Security.Claims;
-using System.Text;
+using System.Diagnostics;
+using System.Security.Claims;
 using System.Text.Json;
-using Fresh.Core.Entities;
-using Fresh.Infrastructure.Data;
+using Fresh.Core.DTOs.Log;
+using Fresh.Core.Interfaces;
 
 namespace Fresh.Api.Middleware;
 
+/// <summary>
+/// Responsabilidad única: registrar en la BD cada petición HTTP con su duración,
+/// entidad afectada, usuario y excepción (si ocurrió).
+/// Depende de ILogService (abstracción), no de FreshDbContext.
+/// </summary>
 public class ApiLoggingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ApiLoggingMiddleware> _logger;
 
-    private static readonly string[] ExcludedPaths =
+    private static readonly string[] ExcludedPrefixes =
     [
         "/api/logs",
         "/swagger",
-        "/favicon.ico"
+        "/favicon.ico",
     ];
 
     public ApiLoggingMiddleware(
@@ -31,16 +36,7 @@ public class ApiLoggingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // 1. BYPASS PREFLIGHT: Ignorar peticiones OPTIONS de CORS inmediatamente
-        if (context.Request.Method == HttpMethods.Options)
-        {
-            await _next(context);
-            return;
-        }
-
-        var path = context.Request.Path.Value ?? string.Empty;
-
-        if (path.Contains("/hub") || path.Contains("/presence") || path.Contains("/negotiate"))
+        if (ShouldSkip(context))
         {
             await _next(context);
             return;
@@ -48,131 +44,114 @@ public class ApiLoggingMiddleware
 
         context.Request.EnableBuffering();
 
+        var stopwatch = Stopwatch.StartNew();
+        Exception? capturedException = null;
+
         try
         {
             await _next(context);
         }
+        catch (Exception ex)
+        {
+            capturedException = ex;
+            throw; // GlobalExceptionMiddleware formatea la respuesta 500
+        }
         finally
         {
-            // 2. EXTRAER LOS DATOS AQUÍ. El HttpContext sigue vivo en este punto.
-            var method = context.Request.Method;
-            var statusCode = context.Response.StatusCode;
-            var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            stopwatch.Stop();
 
-            // 3. Pasar SOLO variables simples al Task.Run, NUNCA el context.
-            _ = Task.Run(async () => {
-                await SaveSimpleLogAsync(method, path, statusCode, userId);
+            // Extraer todos los datos del contexto ANTES de entrar al Task.Run
+            var method      = context.Request.Method;
+            var path        = context.Request.Path.Value ?? string.Empty;
+            var statusCode  = capturedException is not null ? 500 : context.Response.StatusCode;
+            var userId      = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var entityName  = ExtractEntityName(path);
+            var entityId    = ExtractEntityId(path);
+            var durationMs  = (int)Math.Min(stopwatch.ElapsedMilliseconds, int.MaxValue);
+            var exText      = capturedException?.ToString();
+
+            _ = Task.Run(async () =>
+                await PersistLogAsync(method, path, statusCode, userId,
+                                      entityName, entityId, durationMs, exText));
+        }
+    }
+
+    // ── Persistencia ──────────────────────────────────────────────────────────
+
+    private async Task PersistLogAsync(
+        string method, string path, int statusCode,
+        string? userId, string? entityName, string? entityId,
+        int durationMs, string? exceptionText)
+    {
+        try
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var logService = scope.ServiceProvider.GetRequiredService<ILogService>();
+
+            var logLevel = DetermineLogLevel(statusCode, exceptionText);
+            var status   = statusCode is >= 200 and < 300 ? "SUCCESS" : "ERROR";
+
+            await logService.CreateAsync(new LogRequest
+            {
+                TransactionId     = Guid.NewGuid().ToString(),
+                LogLevel          = logLevel,
+                Operation         = $"{method} {path}"[..Math.Min($"{method} {path}".Length, 100)],
+                EntityName        = entityName,
+                EntityId          = entityId,
+                UserId            = userId,
+                TransactionStatus = status,
+                DurationMs        = durationMs,
+                Logger            = nameof(ApiLoggingMiddleware),
+                Message           = $"{method} {path} → {statusCode}",
+                Exception         = exceptionText,
             });
         }
-    }
-
-    private async Task SaveSimpleLogAsync(string method, string path, int statusCode, string? userId)
-    {
-        try
-        {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<FreshDbContext>();
-
-            var log = new Log
-            {
-                TransactionId = Guid.NewGuid().ToString(),
-                LogDate = DateTimeOffset.UtcNow,
-                LogLevel = statusCode >= 400 ? "ERROR" : "INFO",
-                Operation = $"{method} {path}", // Usar variable extraída
-                TransactionStatus = statusCode >= 200 && statusCode < 300 ? "SUCCESS" : "ERROR",
-                DurationMs = 0,
-                UserId = userId, // Usar variable extraída
-                Message = $"Respuesta rápida: {statusCode}",
-                CreatedAt = DateTimeOffset.UtcNow,
-                Logger = nameof(ApiLoggingMiddleware)
-            };
-
-            dbContext.Logs.Add(log);
-            await dbContext.SaveChangesAsync();
-        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error en el log simplificado");
+            _logger.LogError(ex, "Error al persistir log de auditoría");
         }
     }
 
-    private async Task SaveLogAsync(
-        string transactionId, string correlationId, DateTimeOffset logDate, string logLevel, string operation,
-        string? entityName, string? entityId, string? userId, string transactionStatus, long durationMs,
-        string message, string? exception)
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static bool ShouldSkip(HttpContext context)
     {
-        try
-        {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<FreshDbContext>();
+        if (context.Request.Method == HttpMethods.Options) return true;
 
-            var log = new Log
-            {
-                TransactionId = transactionId,
-                CorrelationId = correlationId,
-                LogDate = logDate,
-                LogLevel = logLevel,
-                Operation = operation,
-                EntityName = entityName,
-                EntityId = entityId,
-                UserId = userId,
-                TransactionStatus = transactionStatus,
-                DurationMs = (int)Math.Min(durationMs, int.MaxValue),
-                Logger = nameof(ApiLoggingMiddleware),
-                Message = message,
-                Exception = exception,
-                CreatedAt = DateTimeOffset.UtcNow
-            };
+        var path = context.Request.Path.Value ?? string.Empty;
 
-            dbContext.Logs.Add(log);
-            await dbContext.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al guardar log en base de datos");
-        }
+        foreach (var prefix in ExcludedPrefixes)
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+        return path.Contains("/hub", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("/presence", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("/negotiate", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<string?> ReadRequestBodyAsync(HttpRequest request)
-    {
-        if (request.ContentLength is null or 0) return null;
-        request.Body.Seek(0, SeekOrigin.Begin);
-        using var reader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
-        var body = await reader.ReadToEndAsync();
-        request.Body.Seek(0, SeekOrigin.Begin);
-        return body;
-    }
-
-    private static string? ExtractEntityId(string path, string? requestBody, string? entityName)
-    {
-        if (entityName?.Equals("auth", StringComparison.OrdinalIgnoreCase) == true && requestBody is not null)
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(requestBody);
-                if (doc.RootElement.TryGetProperty("email", out var emailProp)) return emailProp.GetString();
-            }
-            catch { }
-        }
-        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Length >= 3 ? segments[2] : null;
-    }
+    private static string DetermineLogLevel(int statusCode, string? exceptionText) =>
+        exceptionText is not null ? "Fatal"
+        : statusCode >= 500       ? "Error"
+        : statusCode >= 400       ? "Warning"
+        : "Info";
 
     private static string? ExtractEntityName(string path)
     {
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // /api/{entity}/{id?} → index 1 es la entidad
         return segments.Length >= 2 ? segments[1] : null;
     }
 
-    private static string? ExtractErrorMessage(string responseBody, int statusCode)
+    private static string? ExtractEntityId(string path)
     {
-        if (statusCode < 400 || string.IsNullOrWhiteSpace(responseBody)) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(responseBody);
-            if (doc.RootElement.TryGetProperty("message", out var msg)) return msg.GetString();
-        }
-        catch { }
-        return null;
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // /api/{entity}/{id} → index 2 es el id
+        if (segments.Length < 3) return null;
+
+        var candidate = segments[2];
+        // Solo retorna si parece un id numérico o GUID
+        return (long.TryParse(candidate, out _) || Guid.TryParse(candidate, out _))
+            ? candidate
+            : null;
     }
 }

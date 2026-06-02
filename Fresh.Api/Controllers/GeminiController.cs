@@ -1,32 +1,29 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Fresh.Api.Services;
+using Fresh.Core.DTOs.Log;
+using Fresh.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Fresh.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class GeminiController : ControllerBase
+public class GeminiController(
+    IHttpClientFactory httpClientFactory,
+    IConfiguration config,
+    GoogleDriveService driveService,
+    ILogService logService,
+    ILogger<GeminiController> logger) : ControllerBase
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _config;
-    private readonly GoogleDriveService _driveService;
-    private readonly ILogger<GeminiController> _logger;
-
-    public GeminiController(
-        IHttpClientFactory httpClientFactory,
-        IConfiguration config,
-        GoogleDriveService driveService,
-        ILogger<GeminiController> logger)
-    {
-        _httpClientFactory = httpClientFactory;
-        _config = config;
-        _driveService = driveService;
-        _logger = logger;
-    }
+    private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+    private readonly IConfiguration _config               = config;
+    private readonly GoogleDriveService _driveService      = driveService;
+    private readonly ILogService _logService               = logService;
+    private readonly ILogger<GeminiController> _logger     = logger;
 
     public record AnalyzeRequest(string Base64Image, string MimeType, string? FileName, string? SubFolderId, bool AutoMonthFolder = false);
 
@@ -92,7 +89,6 @@ Reglas:
         var client = _httpClientFactory.CreateClient();
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={apiKey}";
 
-        // Run Gemini analysis and Google Drive upload in parallel
         var geminiTask = client.PostAsync(
             url,
             new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
@@ -111,21 +107,36 @@ Reglas:
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Google Drive not configured, skipping upload");
+            await LogErrorAsync("Google Drive no configurado al analizar factura", ex.ToString());
         }
 
-        var response = await geminiTask;
+        var response     = await geminiTask;
         var responseBody = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
+        {
+            await LogErrorAsync(
+                $"Gemini API retornó {(int)response.StatusCode}",
+                responseBody,
+                transactionData: $"MimeType={request.MimeType}, FileName={request.FileName}");
+
             return StatusCode((int)response.StatusCode, new { message = "Error de Gemini", detail = responseBody });
+        }
 
         if (driveTask is not null)
         {
-            try { driveFileUrl = await driveTask; }
-            catch (Exception ex) { _logger.LogWarning(ex, "Drive upload failed"); }
+            try
+            {
+                driveFileUrl = await driveTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Drive upload failed");
+                await LogErrorAsync("Error al subir factura a Google Drive", ex.ToString(),
+                    transactionData: $"FileName={request.FileName}");
+            }
         }
 
-        // Merge Drive URL into the response JSON
         if (driveFileUrl is not null)
         {
             using var doc = JsonDocument.Parse(responseBody);
@@ -155,7 +166,36 @@ Reglas:
         catch (Exception ex)
         {
             _logger.LogError(ex, "Drive upload-only failed");
+            await LogErrorAsync("Error al subir archivo a Google Drive", ex.ToString(),
+                transactionData: $"FileName={request.FileName}, MimeType={request.MimeType}");
+
             return StatusCode(500, new { message = "Error al subir a Google Drive", detail = ex.Message });
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private async Task LogErrorAsync(string message, string exceptionText, string? transactionData = null)
+    {
+        try
+        {
+            await _logService.CreateAsync(new LogRequest
+            {
+                TransactionId     = Guid.NewGuid().ToString(),
+                LogLevel          = "Error",
+                Operation         = $"{Request.Method} {Request.Path}",
+                EntityName        = "gemini",
+                UserId            = User.FindFirstValue(ClaimTypes.NameIdentifier),
+                TransactionStatus = "ERROR",
+                Logger            = nameof(GeminiController),
+                Message           = message,
+                Exception         = exceptionText,
+                TransactionData   = transactionData,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No se pudo registrar error de Gemini en logs");
         }
     }
 

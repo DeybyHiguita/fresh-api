@@ -232,18 +232,11 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseExceptionHandler(errApp =>
-{
-    errApp.Run(async ctx =>
-    {
-        ctx.Response.StatusCode  = 500;
-        ctx.Response.ContentType = "application/json";
-        var feature = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
-        var msg = feature?.Error?.Message ?? "Internal server error";
-        await ctx.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new { message = msg }));
-    });
-});
-
+// Pipeline de middleware: GlobalExceptionMiddleware es la capa más externa
+// para capturar cualquier excepción no controlada y devolver JSON 500.
+// ApiLoggingMiddleware está adentro y puede capturar la excepción antes
+// de que GlobalExceptionMiddleware la formatee.
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors("AllowAngular");
 app.UseAuthentication();
 app.UseAuthorization();
