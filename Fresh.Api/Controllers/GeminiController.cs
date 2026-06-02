@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using Fresh.Api.Middleware;
 using Fresh.Api.Services;
 using Fresh.Core.DTOs.Log;
 using Fresh.Core.Interfaces;
@@ -179,9 +180,13 @@ Reglas:
     {
         try
         {
+            // Enlazar con el log del middleware usando el correlationId
+            var correlationId = HttpContext.Items[ApiLoggingMiddleware.CorrelationIdKey]?.ToString();
+
             await _logService.CreateAsync(new LogRequest
             {
                 TransactionId     = Guid.NewGuid().ToString(),
+                CorrelationId     = correlationId,
                 LogLevel          = "Error",
                 Operation         = $"{Request.Method} {Request.Path}",
                 EntityName        = "gemini",
