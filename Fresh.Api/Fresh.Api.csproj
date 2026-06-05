@@ -6,6 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- Excluir carpeta Test para que los artefactos de compilación de proyectos
+       anidados no contaminen el glob **/*.cs del SDK y dupliquen atributos. -->
+  <ItemGroup>
+    <Compile Remove="Test/**/*.cs" />
+    <EmbeddedResource Remove="Test/**" />
+    <None Remove="Test/**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Google.Apis.Auth" Version="1.74.0" />
     <PackageReference Include="Google.Apis.Drive.v3" Version="1.74.0.4135" />
