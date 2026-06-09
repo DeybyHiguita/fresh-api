@@ -1,3 +1,4 @@
+using Fresh.Api.Services;
 using Fresh.Core.DTOs.PurchaseBatch;
 using Fresh.Core.DTOs.PurchaseDetail;
 using Fresh.Core.Interfaces;
@@ -12,10 +13,12 @@ namespace Fresh.Api.Controllers;
 public class PurchaseBatchesController : ControllerBase
 {
     private readonly IPurchaseBatchService _batchService;
+    private readonly ShareTokenService _tokens;
 
-    public PurchaseBatchesController(IPurchaseBatchService batchService)
+    public PurchaseBatchesController(IPurchaseBatchService batchService, ShareTokenService tokens)
     {
         _batchService = batchService;
+        _tokens       = tokens;
     }
 
     /// <summary>
@@ -183,5 +186,57 @@ public class PurchaseBatchesController : ControllerBase
             return NotFound(new { message = "Detalle de compra no encontrado" });
 
         return NoContent();
+    }
+
+    // ── Compartir lote (enlace público) ──────────────────────────────────────
+
+    /// <summary>
+    /// Genera un token cifrado (AES-256) para compartir el lote sin autenticación.
+    /// </summary>
+    [HttpGet("{id}/share-token")]
+    public async Task<IActionResult> GetShareToken(int id)
+    {
+        var exists = await _batchService.GetByIdAsync(id);
+        if (exists == null)
+            return NotFound(new { message = "Lote no encontrado" });
+
+        return Ok(new { token = _tokens.Protect(id) });
+    }
+
+    /// <summary>
+    /// Consulta pública del lote usando un token cifrado. No requiere autenticación.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("public/{token}")]
+    public async Task<ActionResult<PublicBatchResponse>> GetPublic(string token)
+    {
+        var batchId = _tokens.Unprotect(token);
+        if (batchId is null)
+            return BadRequest(new { message = "Enlace inválido o expirado" });
+
+        var batch = await _batchService.GetByIdAsync(batchId.Value);
+        if (batch is null)
+            return NotFound(new { message = "Lote no encontrado" });
+
+        var response = new PublicBatchResponse
+        {
+            BatchName = batch.BatchName,
+            StartDate = batch.StartDate,
+            EndDate   = batch.EndDate,
+            Total     = batch.Details.Sum(d => d.TotalValue),
+            Items     = batch.Details
+                .OrderBy(d => d.ProductName)
+                .Select(d => new PublicBatchItem
+                {
+                    ProductName = d.ProductName,
+                    ProductUnit = d.ProductUnit,
+                    Quantity    = d.Quantity,
+                    UnitPrice   = d.UnitPrice,
+                    TotalValue  = d.TotalValue,
+                })
+                .ToList(),
+        };
+
+        return Ok(response);
     }
 }
