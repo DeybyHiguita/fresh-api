@@ -26,7 +26,27 @@ public class GeminiController(
     private readonly ILogService _logService               = logService;
     private readonly ILogger<GeminiController> _logger     = logger;
 
-    public record AnalyzeRequest(string Base64Image, string MimeType, string? FileName, string? SubFolderId, bool AutoMonthFolder = false);
+    // ── DTOs ─────────────────────────────────────────────────────────────────
+
+    /// <summary>Producto del inventario que el frontend envía para que Gemini pueda hacer el match.</summary>
+    public record ProductHint(int Id, string Name, string Unit);
+
+    public record AnalyzeRequest(
+        string Base64Image,
+        string MimeType,
+        string? FileName,
+        string? SubFolderId,
+        bool AutoMonthFolder = false,
+        IEnumerable<ProductHint>? Products = null);
+
+    public record UploadOnlyRequest(
+        string Base64Image,
+        string MimeType,
+        string? FileName,
+        string? SubFolderId,
+        bool AutoMonthFolder = false);
+
+    // ── Endpoints ─────────────────────────────────────────────────────────────
 
     [HttpPost("analyze-invoice")]
     public async Task<IActionResult> AnalyzeInvoice([FromBody] AnalyzeRequest request)
@@ -35,34 +55,7 @@ public class GeminiController(
         if (string.IsNullOrWhiteSpace(apiKey))
             return StatusCode(500, new { message = "Gemini API key not configured" });
 
-        var prompt = @"Analiza esta imagen de factura/recibo de compra y extrae los datos en formato JSON estricto.
-Responde ÚNICAMENTE con el JSON, sin texto adicional, sin markdown, sin bloques de código.
-
-El JSON debe tener exactamente esta estructura:
-{
-  ""proveedor"": ""nombre del proveedor o tienda"",
-  ""numeroFactura"": ""número de factura si se ve"",
-  ""fechaFactura"": ""fecha en formato YYYY-MM-DD"",
-  ""subtotal"": 0.00,
-  ""impuestos"": 0.00,
-  ""total"": 0.00,
-  ""items"": [
-    {
-      ""descripcion"": ""nombre del producto"",
-      ""cantidad"": 1,
-      ""unidad"": ""kg/und/lt/g/lb/ml"",
-      ""precioUnitario"": 0.00,
-      ""precioTotal"": 0.00
-    }
-  ]
-}
-
-Reglas:
-- Si no puedes determinar un valor numérico, usa 0
-- Si no hay número de factura visible, usa null
-- Para la unidad intenta inferir (kg para kilos, lt para litros, und para unidades, etc.)
-- Los precios deben ser numéricos sin símbolos de moneda
-- La cantidad debe ser un número decimal si aplica";
+        var prompt = BuildPrompt(request.Products);
 
         var body = new
         {
@@ -72,14 +65,7 @@ Reglas:
                 {
                     parts = new object[]
                     {
-                        new
-                        {
-                            inlineData = new
-                            {
-                                mimeType = request.MimeType,
-                                data = request.Base64Image
-                            }
-                        },
+                        new { inlineData = new { mimeType = request.MimeType, data = request.Base64Image } },
                         new { text = prompt }
                     }
                 }
@@ -95,11 +81,12 @@ Reglas:
             new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
         );
 
+        // Subida a Drive en paralelo
         var driveFileUrl = (string?)null;
         Task<string>? driveTask = null;
         try
         {
-            var fileName = request.FileName ?? $"factura_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{MimeToExtension(request.MimeType)}";
+            var fileName    = request.FileName ?? $"factura_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{MimeToExtension(request.MimeType)}";
             var subFolderId = request.SubFolderId;
             if (subFolderId is null && request.AutoMonthFolder)
                 subFolderId = await _driveService.GetOrCreateMonthFolderAsync();
@@ -126,10 +113,7 @@ Reglas:
 
         if (driveTask is not null)
         {
-            try
-            {
-                driveFileUrl = await driveTask;
-            }
+            try   { driveFileUrl = await driveTask; }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Drive upload failed");
@@ -150,14 +134,12 @@ Reglas:
         return Content(responseBody, "application/json");
     }
 
-    public record UploadOnlyRequest(string Base64Image, string MimeType, string? FileName, string? SubFolderId, bool AutoMonthFolder = false);
-
     [HttpPost("upload-to-drive")]
     public async Task<IActionResult> UploadToDrive([FromBody] UploadOnlyRequest request)
     {
         try
         {
-            var fileName = request.FileName ?? $"archivo_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{MimeToExtension(request.MimeType)}";
+            var fileName    = request.FileName ?? $"archivo_{DateTime.UtcNow:yyyyMMdd_HHmmss}.{MimeToExtension(request.MimeType)}";
             var subFolderId = request.SubFolderId;
             if (subFolderId is null && request.AutoMonthFolder)
                 subFolderId = await _driveService.GetOrCreateMonthFolderAsync();
@@ -169,20 +151,77 @@ Reglas:
             _logger.LogError(ex, "Drive upload-only failed");
             await LogErrorAsync("Error al subir archivo a Google Drive", ex.ToString(),
                 transactionData: $"FileName={request.FileName}, MimeType={request.MimeType}");
-
             return StatusCode(500, new { message = "Error al subir a Google Drive", detail = ex.Message });
         }
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Construye el prompt para Gemini. Si el frontend envió el catálogo de productos,
+    /// pide que la IA asigne productId a cada ítem para evitar que el frontend haga
+    /// match por string (que falla con nombres abreviados o en otro idioma).
+    /// </summary>
+    private static string BuildPrompt(IEnumerable<ProductHint>? products)
+    {
+        var catalogSection = string.Empty;
+        var productIdField = string.Empty;
+
+        if (products?.Any() == true)
+        {
+            var lines = products.Select(p => $"  {{\"id\":{p.Id},\"nombre\":\"{p.Name}\",\"unidad\":\"{p.Unit}\"}}");
+            catalogSection = $"""
+
+Catálogo de productos existentes en el inventario:
+[
+{string.Join(",\n", lines)}
+]
+
+Para cada ítem de la factura busca el producto más similar en el catálogo anterior y agrega el campo "productId" con su id.
+Si no encuentras coincidencia razonable usa null.
+""";
+            productIdField = @"      ""productId"": null,";
+        }
+
+        return $"""
+Analiza este documento (factura, recibo o PDF de compra) y extrae los datos en formato JSON estricto.
+Responde ÚNICAMENTE con el JSON, sin texto adicional, sin markdown, sin bloques de código.
+El documento puede ser una imagen o un PDF con múltiples páginas; analiza todo el contenido.
+
+El JSON debe tener exactamente esta estructura:
+{{
+  "proveedor": "nombre del proveedor o tienda",
+  "numeroFactura": "número de factura si se ve",
+  "fechaFactura": "fecha en formato YYYY-MM-DD",
+  "subtotal": 0.00,
+  "impuestos": 0.00,
+  "total": 0.00,
+  "items": [
+    {{
+{productIdField}
+      "descripcion": "nombre del producto",
+      "cantidad": 1,
+      "unidad": "kg/und/lt/g/lb/ml",
+      "precioUnitario": 0.00,
+      "precioTotal": 0.00
+    }}
+  ]
+}}
+
+Reglas:
+- Si no puedes determinar un valor numérico, usa 0
+- Si no hay número de factura visible, usa null
+- Para la unidad intenta inferir (kg para kilos, lt para litros, und para unidades, etc.)
+- Los precios deben ser numéricos sin símbolos de moneda
+- La cantidad debe ser un número decimal si aplica{catalogSection}
+""";
+    }
 
     private async Task LogErrorAsync(string message, string exceptionText, string? transactionData = null)
     {
         try
         {
-            // Enlazar con el log del middleware usando el correlationId
             var correlationId = HttpContext.Items[ApiLoggingMiddleware.CorrelationIdKey]?.ToString();
-
             await _logService.CreateAsync(new LogRequest
             {
                 TransactionId     = Guid.NewGuid().ToString(),
@@ -206,10 +245,11 @@ Reglas:
 
     private static string MimeToExtension(string mimeType) => mimeType switch
     {
-        "image/jpeg" => "jpg",
-        "image/png"  => "png",
-        "image/webp" => "webp",
-        "image/heic" => "heic",
-        _            => "jpg"
+        "image/jpeg"       => "jpg",
+        "image/png"        => "png",
+        "image/webp"       => "webp",
+        "image/heic"       => "heic",
+        "application/pdf"  => "pdf",
+        _                  => "jpg"
     };
 }
