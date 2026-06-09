@@ -183,13 +183,13 @@ Si no encuentras coincidencia razonable usa null.
             productIdField = @"      ""productId"": null,";
         }
 
-        return $"""
+        return $$"""
 Analiza este documento (factura, recibo o PDF de compra) y extrae los datos en formato JSON estricto.
 Responde ÚNICAMENTE con el JSON, sin texto adicional, sin markdown, sin bloques de código.
 El documento puede ser una imagen o un PDF con múltiples páginas; analiza todo el contenido.
 
 El JSON debe tener exactamente esta estructura:
-{{
+{
   "proveedor": "nombre del proveedor o tienda",
   "numeroFactura": "número de factura si se ve",
   "fechaFactura": "fecha en formato YYYY-MM-DD",
@@ -197,23 +197,23 @@ El JSON debe tener exactamente esta estructura:
   "impuestos": 0.00,
   "total": 0.00,
   "items": [
-    {{
-{productIdField}
+    {
+{{productIdField}}
       "descripcion": "nombre del producto",
       "cantidad": 1,
       "unidad": "kg/und/lt/g/lb/ml",
       "precioUnitario": 0.00,
       "precioTotal": 0.00
-    }}
+    }
   ]
-}}
+}
 
 Reglas:
 - Si no puedes determinar un valor numérico, usa 0
 - Si no hay número de factura visible, usa null
 - Para la unidad intenta inferir (kg para kilos, lt para litros, und para unidades, etc.)
 - Los precios deben ser numéricos sin símbolos de moneda
-- La cantidad debe ser un número decimal si aplica{catalogSection}
+- La cantidad debe ser un número decimal si aplica{{catalogSection}}
 """;
     }
 
