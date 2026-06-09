@@ -11,4 +11,7 @@ public class PurchaseBatchResponse
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<PurchaseDetailResponse> Details { get; set; } = [];
+
+    public int? LinkedExpenseId { get; set; }
+    public decimal? LinkedExpenseAmountPaid { get; set; }
 }

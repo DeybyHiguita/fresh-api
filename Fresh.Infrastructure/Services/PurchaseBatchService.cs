@@ -24,7 +24,8 @@ public class PurchaseBatchService : IPurchaseBatchService
             .OrderByDescending(b => b.StartDate)
             .ToListAsync();
 
-        return batches.Select(MapToResponse);
+        var expenseMap = await BuildExpenseMap(batches.Select(b => b.Id));
+        return batches.Select(b => MapToResponse(b, expenseMap));
     }
 
     public async Task<(IEnumerable<PurchaseBatchResponse> Items, int Total)> GetPagedAsync(int skip, int take)
@@ -38,7 +39,8 @@ public class PurchaseBatchService : IPurchaseBatchService
                 .ThenInclude(d => d.Product)
             .ToListAsync();
 
-        return (batches.Select(MapToResponse), total);
+        var expenseMap = await BuildExpenseMap(batches.Select(b => b.Id));
+        return (batches.Select(b => MapToResponse(b, expenseMap)), total);
     }
 
     public async Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search, int? keepExpenseId = null)
@@ -83,7 +85,9 @@ public class PurchaseBatchService : IPurchaseBatchService
                 .ThenInclude(d => d.Product)
             .FirstOrDefaultAsync(b => b.Id == id);
 
-        return batch == null ? null : MapToResponse(batch);
+        if (batch == null) return null;
+        var expenseMap = await BuildExpenseMap([batch.Id]);
+        return MapToResponse(batch, expenseMap);
     }
 
     public async Task<PurchaseBatchResponse> CreateAsync(PurchaseBatchRequest request)
@@ -103,7 +107,7 @@ public class PurchaseBatchService : IPurchaseBatchService
         _context.PurchaseBatches.Add(batch);
         await _context.SaveChangesAsync();
 
-        return MapToResponse(batch);
+        return MapToResponse(batch, []);
     }
 
     public async Task<PurchaseBatchResponse?> UpdateAsync(int id, PurchaseBatchRequest request)
@@ -125,7 +129,8 @@ public class PurchaseBatchService : IPurchaseBatchService
 
         await _context.SaveChangesAsync();
 
-        return MapToResponse(batch);
+        var expenseMap = await BuildExpenseMap([batch.Id]);
+        return MapToResponse(batch, expenseMap);
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -271,20 +276,46 @@ public class PurchaseBatchService : IPurchaseBatchService
             .ToListAsync();
     }
 
-    // ?? Helpers ??????????????????????????????????????????????????????????????
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static PurchaseBatchResponse MapToResponse(PurchaseBatch batch) => new()
+    private async Task<Dictionary<int, (int ExpenseId, decimal AmountPaid)>> BuildExpenseMap(IEnumerable<int> batchIds)
     {
-        Id = batch.Id,
-        BatchName = batch.BatchName,
-        StartDate = batch.StartDate,
-        EndDate = batch.EndDate,
-        CreatedAt = batch.CreatedAt,
-        UpdatedAt = batch.UpdatedAt,
-        Details = batch.PurchaseDetails
-            .Select(d => MapDetailToResponse(d, d.Product))
-            .ToList()
-    };
+        var ids = batchIds.ToList();
+        var rows = await _context.Expenses
+            .Where(e => e.PurchaseBatchId != null && ids.Contains(e.PurchaseBatchId.Value))
+            .Select(e => new { e.PurchaseBatchId, e.Id, e.AmountPaid })
+            .ToListAsync();
+
+        // Un lote podría tener más de un gasto; tomamos el más reciente (mayor Id).
+        return rows
+            .GroupBy(e => e.PurchaseBatchId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(e => e.Id)
+                       .Select(e => (e.Id, e.AmountPaid))
+                       .First());
+    }
+
+    private static PurchaseBatchResponse MapToResponse(
+        PurchaseBatch batch,
+        Dictionary<int, (int ExpenseId, decimal AmountPaid)> expenseMap)
+    {
+        expenseMap.TryGetValue(batch.Id, out var exp);
+        return new()
+        {
+            Id = batch.Id,
+            BatchName = batch.BatchName,
+            StartDate = batch.StartDate,
+            EndDate = batch.EndDate,
+            CreatedAt = batch.CreatedAt,
+            UpdatedAt = batch.UpdatedAt,
+            Details = batch.PurchaseDetails
+                .Select(d => MapDetailToResponse(d, d.Product))
+                .ToList(),
+            LinkedExpenseId       = exp.ExpenseId == 0 ? null : exp.ExpenseId,
+            LinkedExpenseAmountPaid = exp.ExpenseId == 0 ? null : exp.AmountPaid,
+        };
+    }
 
     private static PurchaseDetailResponse MapDetailToResponse(PurchaseDetail detail, Product product) => new()
     {
