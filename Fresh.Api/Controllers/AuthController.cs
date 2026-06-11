@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Fresh.Core.DTOs.Auth;
 using Fresh.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Fresh.Api.Controllers;
@@ -41,5 +43,22 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [Authorize]
+    [HttpPost("switch-store")]
+    public async Task<IActionResult> SwitchStore([FromBody] SwitchStoreRequest request)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
+        try
+        {
+            var response = await _authService.SwitchStoreAsync(userId, request.StoreId);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex) { return Unauthorized(new { message = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
 }

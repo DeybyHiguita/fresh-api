@@ -7,7 +7,8 @@ namespace Fresh.Core.Interfaces
 {
     public interface IMenuItemService
     {
-        Task<IEnumerable<MenuItemResponse>> GetAllAsync();
+        Task<IEnumerable<MenuItemResponse>> GetAllAsync(int storeId = 0);
+        Task<bool> ToggleStoreMenuItemAsync(int menuItemId, int storeId);
         Task<MenuItemResponse?> GetByIdAsync(int id);
         Task<MenuItemResponse> CreateAsync(MenuItemRequest request);
         Task<MenuItemResponse?> UpdateAsync(int id, MenuItemRequest request);

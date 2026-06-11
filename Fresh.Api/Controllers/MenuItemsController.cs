@@ -2,6 +2,7 @@
 using Fresh.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Fresh.Api.Controllers;
 
@@ -10,6 +11,7 @@ namespace Fresh.Api.Controllers;
 public class MenuItemsController : ControllerBase
 {
     private readonly IMenuItemService _menuItemService;
+    private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
 
     public MenuItemsController(IMenuItemService menuItemService)
     {
@@ -17,12 +19,13 @@ public class MenuItemsController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene todos los productos del menú
+    /// Obtiene todos los productos del menú con estado por tienda
     /// </summary>
+    [Authorize]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<MenuItemResponse>>> GetAll()
     {
-        var menuItems = await _menuItemService.GetAllAsync();
+        var menuItems = await _menuItemService.GetAllAsync(StoreId);
         return Ok(menuItems);
     }
 
@@ -33,8 +36,22 @@ public class MenuItemsController : ControllerBase
     [HttpGet("public")]
     public async Task<ActionResult<IEnumerable<MenuItemResponse>>> GetAllPublic()
     {
-        var menuItems = await _menuItemService.GetAllAsync();
+        var menuItems = await _menuItemService.GetAllAsync(0);
         return Ok(menuItems);
+    }
+
+    /// <summary>
+    /// Activa/desactiva un producto en la tienda activa
+    /// </summary>
+    [Authorize]
+    [HttpPatch("{id}/toggle-store")]
+    public async Task<IActionResult> ToggleStoreEnabled(int id)
+    {
+        if (StoreId == 0)
+            return BadRequest(new { message = "Se requiere contexto de tienda." });
+
+        var isEnabled = await _menuItemService.ToggleStoreMenuItemAsync(id, StoreId);
+        return Ok(new { isEnabled });
     }
 
     /// <summary>

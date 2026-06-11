@@ -18,5 +18,6 @@ namespace Fresh.Core.DTOs.MenuItem
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public List<MenuItemVariantResponse> Variants { get; set; } = [];
+        public bool IsEnabledInStore { get; set; } = true;
     }
 }

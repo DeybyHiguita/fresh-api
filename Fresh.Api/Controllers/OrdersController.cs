@@ -5,6 +5,7 @@ using Fresh.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
 
 namespace Fresh.Api.Controllers;
 
@@ -26,10 +27,12 @@ public class OrdersController : ControllerBase
         _whatsApp     = whatsApp;
     }
 
+    private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<OrderResponse>>> GetAll()
     {
-        return Ok(await _orderService.GetAllAsync());
+        return Ok(await _orderService.GetAllAsync(StoreId));
     }
 
     [HttpGet("{id}")]
@@ -49,7 +52,7 @@ public class OrdersController : ControllerBase
 
         try
         {
-            var order = await _orderService.CreateAsync(request);
+            var order = await _orderService.CreateAsync(request, StoreId);
 
             // Notificar a todos los administradores conectados
             await _orderHub.Clients.Group("admins").SendAsync("NewOrder", order);

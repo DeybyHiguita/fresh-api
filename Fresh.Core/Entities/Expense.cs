@@ -3,6 +3,7 @@ namespace Fresh.Core.Entities;
 public class Expense
 {
     public int Id { get; set; }
+    public int StoreId { get; set; }
     public int ExpenseTypeId { get; set; }
     public int UserId { get; set; }
     public int? PurchaseBatchId { get; set; }
@@ -16,6 +17,7 @@ public class Expense
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Relaciones de navegación
+    public Store? Store { get; set; }
     public ExpenseType? ExpenseType { get; set; }
     public User? User { get; set; }
     public PurchaseBatch? PurchaseBatch { get; set; }

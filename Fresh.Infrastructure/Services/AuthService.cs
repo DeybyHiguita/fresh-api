@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Fresh.Core.DTOs.Auth;
+using Fresh.Core.DTOs.Store;
 using Fresh.Core.Entities;
 using Fresh.Core.Interfaces;
 using Fresh.Infrastructure.Data;
@@ -27,6 +28,8 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var user = await _context.Users
+            .Include(u => u.UserStores)
+                .ThenInclude(us => us.Store)
             .FirstOrDefaultAsync(u => u.Email == request.Email);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.Password))
@@ -35,14 +38,25 @@ public class AuthService : IAuthService
         if (!user.IsActive)
             throw new UnauthorizedAccessException("Tu cuenta aún no ha sido activada por un administrador.");
 
+        var stores = user.UserStores
+            .Where(us => us.Store.IsActive)
+            .Select(us => new StoreSummary { Id = us.StoreId, Name = us.Store.Name, IsDefault = us.IsDefault })
+            .ToList();
+
+        var defaultStore = stores.FirstOrDefault(s => s.IsDefault) ?? stores.FirstOrDefault();
+        var activeStoreId = defaultStore?.Id ?? 0;
+
         return new AuthResponse
         {
-            Id = user.Id,
-            Name = user.Name,
-            Email = user.Email,
-            Role = user.Role,
-            Token = GenerateToken(user),
-            Settings = await _appSettings.GetAsync()
+            Id           = user.Id,
+            Name         = user.Name,
+            Email        = user.Email,
+            Role         = user.Role,
+            Token        = GenerateToken(user, activeStoreId),
+            StoreId      = activeStoreId,
+            IsSuperAdmin = user.IsSuperAdmin,
+            Stores       = stores,
+            Settings     = await _appSettings.GetAsync()
         };
     }
 
@@ -54,10 +68,10 @@ public class AuthService : IAuthService
 
         var user = new User
         {
-            Name = request.Name,
-            Email = request.Email,
+            Name     = request.Name,
+            Email    = request.Email,
             Password = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            Role = "employee",
+            Role     = "employee",
             IsActive = false
         };
 
@@ -65,17 +79,59 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
     }
 
-    private string GenerateToken(User user)
+    public async Task<AuthResponse> SwitchStoreAsync(int userId, int storeId)
+    {
+        var user = await _context.Users
+            .Include(u => u.UserStores)
+                .ThenInclude(us => us.Store)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null)
+            throw new UnauthorizedAccessException("Usuario no encontrado.");
+
+        if (!user.IsSuperAdmin)
+        {
+            var hasAccess = user.UserStores.Any(us => us.StoreId == storeId && us.Store.IsActive);
+            if (!hasAccess)
+                throw new UnauthorizedAccessException("No tienes acceso a esta tienda.");
+        }
+
+        var storeExists = await _context.Stores.AnyAsync(s => s.Id == storeId && s.IsActive);
+        if (!storeExists)
+            throw new KeyNotFoundException("Tienda no encontrada o inactiva.");
+
+        var stores = user.UserStores
+            .Where(us => us.Store.IsActive)
+            .Select(us => new StoreSummary { Id = us.StoreId, Name = us.Store.Name, IsDefault = us.IsDefault })
+            .ToList();
+
+        return new AuthResponse
+        {
+            Id           = user.Id,
+            Name         = user.Name,
+            Email        = user.Email,
+            Role         = user.Role,
+            Token        = GenerateToken(user, storeId),
+            StoreId      = storeId,
+            IsSuperAdmin = user.IsSuperAdmin,
+            Stores       = stores,
+            Settings     = await _appSettings.GetAsync()
+        };
+    }
+
+    private string GenerateToken(User user, int storeId)
     {
         var key = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Name, user.Name),
-            new Claim(ClaimTypes.Role, user.Role)
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Name, user.Name),
+            new(ClaimTypes.Role, user.Role),
+            new("store_id", storeId.ToString()),
+            new("is_super_admin", user.IsSuperAdmin.ToString().ToLower())
         };
 
         var token = new JwtSecurityToken(

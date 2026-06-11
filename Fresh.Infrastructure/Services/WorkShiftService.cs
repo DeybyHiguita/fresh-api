@@ -16,12 +16,15 @@ public class WorkShiftService : IWorkShiftService
         _context = context;
     }
 
-    public async Task<IEnumerable<WorkShiftResponse>> GetAllAsync(int? userId = null, DateOnly? date = null)
+    public async Task<IEnumerable<WorkShiftResponse>> GetAllAsync(int? userId = null, DateOnly? date = null, int storeId = 0)
     {
         var query = _context.WorkShifts
             .Include(s => s.User)
             .Include(s => s.BreakTimes)
             .AsQueryable();
+
+        if (storeId > 0)
+            query = query.Where(s => s.StoreId == storeId);
 
         if (userId.HasValue)
             query = query.Where(s => s.UserId == userId.Value);
@@ -47,7 +50,7 @@ public class WorkShiftService : IWorkShiftService
         return shift == null ? null : MapToResponse(shift);
     }
 
-    public async Task<WorkShiftResponse> StartShiftAsync(WorkShiftRequest request)
+    public async Task<WorkShiftResponse> StartShiftAsync(WorkShiftRequest request, int storeId = 0)
     {
         var userExists = await _context.Users.AnyAsync(u => u.Id == request.UserId);
         if (!userExists)
@@ -65,10 +68,11 @@ public class WorkShiftService : IWorkShiftService
 
         var shift = new WorkShift
         {
-            UserId = request.UserId,
+            StoreId   = storeId,
+            UserId    = request.UserId,
             ShiftDate = shiftDate,
             StartTime = request.StartTime,
-            EndTime = request.EndTime,
+            EndTime   = request.EndTime,
             TotalHours = 0,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

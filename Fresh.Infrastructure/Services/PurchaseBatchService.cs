@@ -16,21 +16,26 @@ public class PurchaseBatchService : IPurchaseBatchService
         _context = context;
     }
 
-    public async Task<IEnumerable<PurchaseBatchResponse>> GetAllAsync()
+    public async Task<IEnumerable<PurchaseBatchResponse>> GetAllAsync(int storeId = 0)
     {
-        var batches = await _context.PurchaseBatches
+        var query = _context.PurchaseBatches
             .Include(b => b.PurchaseDetails)
                 .ThenInclude(d => d.Product)
-            .OrderByDescending(b => b.StartDate)
-            .ToListAsync();
+            .AsQueryable();
 
+        if (storeId > 0) query = query.Where(b => b.StoreId == storeId);
+
+        var batches = await query.OrderByDescending(b => b.StartDate).ToListAsync();
         var expenseMap = await BuildExpenseMap(batches.Select(b => b.Id));
         return batches.Select(b => MapToResponse(b, expenseMap));
     }
 
-    public async Task<(IEnumerable<PurchaseBatchResponse> Items, int Total)> GetPagedAsync(int skip, int take)
+    public async Task<(IEnumerable<PurchaseBatchResponse> Items, int Total)> GetPagedAsync(int skip, int take, int storeId = 0)
     {
-        var query = _context.PurchaseBatches.OrderByDescending(b => b.StartDate);
+        var query = _context.PurchaseBatches.AsQueryable();
+        if (storeId > 0) query = query.Where(b => b.StoreId == storeId);
+
+        query = query.OrderByDescending(b => b.StartDate);
         var total = await query.CountAsync();
         var batches = await query
             .Skip(skip)
@@ -43,9 +48,10 @@ public class PurchaseBatchService : IPurchaseBatchService
         return (batches.Select(b => MapToResponse(b, expenseMap)), total);
     }
 
-    public async Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search, int? keepExpenseId = null)
+    public async Task<(IEnumerable<PurchaseBatchSummary> Items, int Total)> GetSummariesAsync(int skip, int take, string? search, int? keepExpenseId = null, int storeId = 0)
     {
         var query = _context.PurchaseBatches.AsQueryable();
+        if (storeId > 0) query = query.Where(b => b.StoreId == storeId);
 
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(b => EF.Functions.ILike(b.BatchName, $"%{search.Trim()}%"));
@@ -90,16 +96,17 @@ public class PurchaseBatchService : IPurchaseBatchService
         return MapToResponse(batch, expenseMap);
     }
 
-    public async Task<PurchaseBatchResponse> CreateAsync(PurchaseBatchRequest request)
+    public async Task<PurchaseBatchResponse> CreateAsync(PurchaseBatchRequest request, int storeId)
     {
         if (request.EndDate < request.StartDate)
             throw new ArgumentException("La fecha de fin no puede ser anterior a la fecha de inicio");
 
         var batch = new PurchaseBatch
         {
+            StoreId   = storeId,
             BatchName = request.BatchName,
             StartDate = request.StartDate,
-            EndDate = request.EndDate,
+            EndDate   = request.EndDate,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

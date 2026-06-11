@@ -65,6 +65,9 @@ builder.Services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
 builder.Services.AddScoped<IEmployeeChildService, EmployeeChildService>();
 builder.Services.AddScoped<IEmployeeAffiliationService, EmployeeAffiliationService>();
 
+// Multi-tienda
+builder.Services.AddScoped<IStoreService, StoreService>();
+
 // JWT Authentication
 builder.Services.AddSignalR();
 

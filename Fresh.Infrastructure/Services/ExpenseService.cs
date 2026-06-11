@@ -12,14 +12,18 @@ public class ExpenseService : IExpenseService
 
     public ExpenseService(FreshDbContext context) { _context = context; }
 
-    public async Task<IEnumerable<ExpenseResponse>> GetAllAsync()
+    public async Task<IEnumerable<ExpenseResponse>> GetAllAsync(int storeId = 0)
     {
-        var expenses = await _context.Expenses
+        var query = _context.Expenses
             .Include(e => e.ExpenseType)
             .Include(e => e.User)
             .Include(e => e.PurchaseBatch)
-            .OrderByDescending(e => e.PaymentDate)
-            .ToListAsync();
+            .AsQueryable();
+
+        if (storeId > 0)
+            query = query.Where(e => e.StoreId == storeId);
+
+        var expenses = await query.OrderByDescending(e => e.PaymentDate).ToListAsync();
         return expenses.Select(MapToResponse);
     }
 
@@ -33,7 +37,7 @@ public class ExpenseService : IExpenseService
         return expense == null ? null : MapToResponse(expense);
     }
 
-    public async Task<ExpenseResponse> CreateAsync(ExpenseRequest request)
+    public async Task<ExpenseResponse> CreateAsync(ExpenseRequest request, int storeId)
     {
         var typeExists = await _context.ExpenseTypes.AnyAsync(t => t.Id == request.ExpenseTypeId);
         if (!typeExists) throw new KeyNotFoundException("El tipo de gasto seleccionado no existe.");
@@ -43,6 +47,7 @@ public class ExpenseService : IExpenseService
 
         var expense = new Expense
         {
+            StoreId         = storeId,
             ExpenseTypeId   = request.ExpenseTypeId,
             UserId          = request.UserId,
             AmountPaid      = request.AmountPaid,
@@ -60,27 +65,26 @@ public class ExpenseService : IExpenseService
         return await GetByIdAsync(expense.Id) ?? throw new Exception("Error al mapear el gasto.");
     }
 
-    // Implementaci�n agregada para cumplir con la interfaz
-    public async Task<IEnumerable<ExpenseResponse>> GetByMonthYearAsync(int month, int year)
+    public async Task<IEnumerable<ExpenseResponse>> GetByMonthYearAsync(int month, int year, int storeId = 0)
     {
-        var expenses = await _context.Expenses
+        var query = _context.Expenses
             .Include(e => e.ExpenseType)
             .Include(e => e.User)
             .Include(e => e.PurchaseBatch)
             .Where(e => e.PaymentDate.Month == month && e.PaymentDate.Year == year)
-            .OrderByDescending(e => e.PaymentDate)
-            .ToListAsync();
+            .AsQueryable();
 
+        if (storeId > 0)
+            query = query.Where(e => e.StoreId == storeId);
+
+        var expenses = await query.OrderByDescending(e => e.PaymentDate).ToListAsync();
         return expenses.Select(MapToResponse);
     }
 
     public async Task<ExpenseResponse?> UpdateAsync(int id, ExpenseRequest request)
     {
-        var expense = await _context.Expenses
-            .FirstOrDefaultAsync(e => e.Id == id);
-
-        if (expense == null)
-            return null;
+        var expense = await _context.Expenses.FirstOrDefaultAsync(e => e.Id == id);
+        if (expense == null) return null;
 
         var typeExists = await _context.ExpenseTypes.AnyAsync(t => t.Id == request.ExpenseTypeId);
         if (!typeExists) throw new KeyNotFoundException("El tipo de gasto seleccionado no existe.");
@@ -98,7 +102,6 @@ public class ExpenseService : IExpenseService
         expense.UpdatedAt       = DateTimeOffset.UtcNow;
 
         await _context.SaveChangesAsync();
-
         return await GetByIdAsync(expense.Id);
     }
 

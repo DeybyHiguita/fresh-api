@@ -6,4 +6,5 @@ public interface IAuthService
 {
     Task<AuthResponse> LoginAsync(LoginRequest request);
     Task RegisterAsync(RegisterRequest request);
+    Task<AuthResponse> SwitchStoreAsync(int userId, int storeId);
 }

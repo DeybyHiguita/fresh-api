@@ -3,6 +3,7 @@ namespace Fresh.Core.Entities;
 public class CashPeriod
 {
     public int Id { get; set; }
+    public int StoreId { get; set; }
     public string Name { get; set; } = string.Empty;
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
@@ -10,5 +11,6 @@ public class CashPeriod
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    public Store? Store { get; set; }
     public ICollection<CashRegister> CashRegisters { get; set; } = [];
 }

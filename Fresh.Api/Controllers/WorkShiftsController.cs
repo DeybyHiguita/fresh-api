@@ -18,6 +18,8 @@ public class WorkShiftsController : ControllerBase
         _workShiftService = workShiftService;
     }
 
+    private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
+
     /// <summary>
     /// Obtiene todas las jornadas. Filtra opcionalmente por usuario y/o fecha.
     /// </summary>
@@ -26,7 +28,7 @@ public class WorkShiftsController : ControllerBase
         [FromQuery] int? userId,
         [FromQuery] DateOnly? date)
     {
-        var shifts = await _workShiftService.GetAllAsync(userId, date);
+        var shifts = await _workShiftService.GetAllAsync(userId, date, StoreId);
         return Ok(shifts);
     }
 
@@ -54,7 +56,7 @@ public class WorkShiftsController : ControllerBase
 
         try
         {
-            var shift = await _workShiftService.StartShiftAsync(request);
+            var shift = await _workShiftService.StartShiftAsync(request, StoreId);
             return CreatedAtAction(nameof(GetById), new { id = shift.Id }, shift);
         }
         catch (KeyNotFoundException ex)
