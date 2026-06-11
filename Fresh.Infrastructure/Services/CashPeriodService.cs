@@ -12,9 +12,12 @@ public class CashPeriodService : ICashPeriodService
 
     public CashPeriodService(FreshDbContext context) { _context = context; }
 
-    public async Task<IEnumerable<CashPeriodResponse>> GetAllAsync()
+    public async Task<IEnumerable<CashPeriodResponse>> GetAllAsync(int storeId = 0)
     {
-        var periods = await _context.CashPeriods.OrderByDescending(p => p.StartDate).ToListAsync();
+        var query = _context.CashPeriods.AsQueryable();
+        if (storeId > 0) query = query.Where(p => p.StoreId == storeId);
+
+        var periods = await query.OrderByDescending(p => p.StartDate).ToListAsync();
         var result = new List<CashPeriodResponse>();
         foreach (var p in periods)
             result.Add(await BuildResponseAsync(p));
@@ -27,17 +30,18 @@ public class CashPeriodService : ICashPeriodService
         return period == null ? null : await BuildResponseAsync(period);
     }
 
-    public async Task<CashPeriodResponse> CreateAsync(CashPeriodRequest request)
+    public async Task<CashPeriodResponse> CreateAsync(CashPeriodRequest request, int storeId)
     {
         if (request.EndDate < request.StartDate)
             throw new ArgumentException("La fecha de fin no puede ser menor a la de inicio.");
 
         var period = new CashPeriod
         {
-            Name = request.Name,
+            StoreId   = storeId,
+            Name      = request.Name,
             StartDate = request.StartDate,
-            EndDate = request.EndDate,
-            IsClosed = false,
+            EndDate   = request.EndDate,
+            IsClosed  = false,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -67,7 +71,9 @@ public class CashPeriodService : ICashPeriodService
 
     private async Task<CashPeriodResponse> BuildResponseAsync(CashPeriod p)
     {
-        var expenses = (await _context.Expenses.ToListAsync())
+        var expenses = (await _context.Expenses
+            .Where(e => e.StoreId == p.StoreId)
+            .ToListAsync())
             .Where(e => e.PaymentDate >= p.StartDate && e.PaymentDate <= p.EndDate)
             .ToList();
 
@@ -90,4 +96,3 @@ public class CashPeriodService : ICashPeriodService
         };
     }
 }
-

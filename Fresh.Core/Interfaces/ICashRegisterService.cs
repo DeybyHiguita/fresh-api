@@ -4,7 +4,7 @@ namespace Fresh.Core.Interfaces;
 
 public interface ICashRegisterService
 {
-    Task<IEnumerable<CashRegisterResponse>> GetAllAsync(int? periodId = null);
+    Task<IEnumerable<CashRegisterResponse>> GetAllAsync(int? periodId = null, int storeId = 0);
     Task<CashRegisterResponse?> GetByIdAsync(int id);
     Task<CashSystemTotalsResponse?> GetSystemTotalsAsync(int id);
     Task<CashRegisterResponse> OpenRegisterAsync(OpenCashRegisterRequest request);

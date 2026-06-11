@@ -61,6 +61,11 @@ public class FreshDbContext : DbContext
     public DbSet<EmployeeChildDocument> EmployeeChildDocuments => Set<EmployeeChildDocument>();
     public DbSet<EmployeeAffiliation> EmployeeAffiliations => Set<EmployeeAffiliation>();
 
+    // Multi-tienda
+    public DbSet<Store> Stores => Set<Store>();
+    public DbSet<UserStore> UserStores => Set<UserStore>();
+    public DbSet<StoreMenuItem> StoreMenuItems => Set<StoreMenuItem>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AppSetting>(entity =>
@@ -1137,6 +1142,85 @@ public class FreshDbContext : DbContext
             entity.Ignore(e => e.StatusDisplay);
             entity.HasIndex(e => e.EmployeeId).HasDatabaseName("ix_employee_affiliations_employee_id");
             entity.HasOne(e => e.Employee).WithMany(emp => emp.Affiliations).HasForeignKey(e => e.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Multi-tienda ──────────────────────────────────────────────────────
+        modelBuilder.Entity<Store>(entity =>
+        {
+            entity.ToTable("stores");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Address).HasColumnName("address").HasMaxLength(255);
+            entity.Property(e => e.Phone).HasColumnName("phone").HasMaxLength(20);
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<UserStore>(entity =>
+        {
+            entity.ToTable("user_stores");
+            entity.HasKey(e => new { e.UserId, e.StoreId });
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.Property(e => e.IsDefault).HasColumnName("is_default").HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasOne(e => e.User).WithMany(u => u.UserStores).HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Store).WithMany(s => s.UserStores).HasForeignKey(e => e.StoreId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StoreMenuItem>(entity =>
+        {
+            entity.ToTable("store_menu_items");
+            entity.HasKey(e => new { e.StoreId, e.MenuItemId });
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.Property(e => e.MenuItemId).HasColumnName("menu_item_id");
+            entity.Property(e => e.IsEnabled).HasColumnName("is_enabled").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasOne(e => e.Store).WithMany().HasForeignKey(e => e.StoreId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.MenuItem).WithMany().HasForeignKey(e => e.MenuItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── StoreId en tablas existentes ──────────────────────────────────────
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(e => e.IsSuperAdmin).HasColumnName("is_super_admin").HasDefaultValue(false);
+        });
+
+        modelBuilder.Entity<Expense>(entity =>
+        {
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.HasOne(e => e.Store).WithMany().HasForeignKey(e => e.StoreId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.StoreId).HasDatabaseName("idx_expenses_store_id");
+        });
+
+        modelBuilder.Entity<Order>(entity =>
+        {
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.HasOne(e => e.Store).WithMany().HasForeignKey(e => e.StoreId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.StoreId).HasDatabaseName("idx_orders_store_id");
+        });
+
+        modelBuilder.Entity<PurchaseBatch>(entity =>
+        {
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.HasOne(e => e.Store).WithMany().HasForeignKey(e => e.StoreId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.StoreId).HasDatabaseName("idx_purchase_batches_store_id");
+        });
+
+        modelBuilder.Entity<WorkShift>(entity =>
+        {
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.HasOne(e => e.Store).WithMany().HasForeignKey(e => e.StoreId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.StoreId).HasDatabaseName("idx_work_shifts_store_id");
+        });
+
+        modelBuilder.Entity<CashPeriod>(entity =>
+        {
+            entity.Property(e => e.StoreId).HasColumnName("store_id");
+            entity.HasOne(e => e.Store).WithMany().HasForeignKey(e => e.StoreId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.StoreId).HasDatabaseName("idx_cash_periods_store_id");
         });
     }
 }

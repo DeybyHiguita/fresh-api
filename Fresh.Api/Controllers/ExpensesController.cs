@@ -13,19 +13,18 @@ public class ExpensesController : ControllerBase
     private readonly IExpenseService _service;
     public ExpensesController(IExpenseService service) { _service = service; }
 
+    private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ExpenseResponse>>> GetAll()
-    {
-        return Ok(await _service.GetAllAsync());
-    }
+        => Ok(await _service.GetAllAsync(StoreId));
 
     [HttpGet("by-date")]
     public async Task<ActionResult<IEnumerable<ExpenseResponse>>> GetByMonthYear([FromQuery] int month, [FromQuery] int year)
     {
         if (month < 1 || month > 12 || year < 2000)
-            return BadRequest(new { message = "Mes o año inválido" });
-        var result = await _service.GetByMonthYearAsync(month, year);
-        return Ok(result);
+            return BadRequest(new { message = "Mes o aÃ±o invÃ¡lido" });
+        return Ok(await _service.GetByMonthYearAsync(month, year, StoreId));
     }
 
     [HttpGet("{id}")]
@@ -42,7 +41,7 @@ public class ExpensesController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
-            var expense = await _service.CreateAsync(request);
+            var expense = await _service.CreateAsync(request, StoreId);
             return CreatedAtAction(nameof(GetById), new { id = expense.Id }, expense);
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }

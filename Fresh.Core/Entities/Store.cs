@@ -1,14 +1,12 @@
 namespace Fresh.Core.Entities;
 
-public class User
+public class Store
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public string Role { get; set; } = "employee";
+    public string? Address { get; set; }
+    public string? Phone { get; set; }
     public bool IsActive { get; set; } = true;
-    public bool IsSuperAdmin { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

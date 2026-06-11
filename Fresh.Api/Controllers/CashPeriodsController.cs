@@ -13,9 +13,11 @@ public class CashPeriodsController : ControllerBase
     private readonly ICashPeriodService _service;
     public CashPeriodsController(ICashPeriodService service) { _service = service; }
 
+    private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CashPeriodResponse>>> GetAll()
-        => Ok(await _service.GetAllAsync());
+        => Ok(await _service.GetAllAsync(StoreId));
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CashPeriodResponse>> GetById(int id)
@@ -30,7 +32,7 @@ public class CashPeriodsController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
-            var period = await _service.CreateAsync(request);
+            var period = await _service.CreateAsync(request, StoreId);
             return CreatedAtAction(nameof(GetById), new { id = period.Id }, period);
         }
         catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }

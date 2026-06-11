@@ -13,9 +13,11 @@ public class CashRegistersController : ControllerBase
     private readonly ICashRegisterService _service;
     public CashRegistersController(ICashRegisterService service) { _service = service; }
 
+    private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CashRegisterResponse>>> GetAll([FromQuery] int? periodId)
-        => Ok(await _service.GetAllAsync(periodId));
+        => Ok(await _service.GetAllAsync(periodId, StoreId));
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CashRegisterResponse>> GetById(int id)

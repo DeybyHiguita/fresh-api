@@ -14,7 +14,7 @@ public class MenuItemService : IMenuItemService
         _context = context;
     }
 
-    public async Task<IEnumerable<MenuItemResponse>> GetAllAsync()
+    public async Task<IEnumerable<MenuItemResponse>> GetAllAsync(int storeId = 0)
     {
         var salesByItem = await _context.OrderItems
             .GroupBy(oi => oi.MenuItemId)
@@ -25,11 +25,49 @@ public class MenuItemService : IMenuItemService
             .Include(m => m.Variants.OrderBy(v => v.SortOrder).ThenBy(v => v.VariantName))
             .ToListAsync();
 
+        Dictionary<int, bool> storeEnabledMap = [];
+        if (storeId > 0)
+        {
+            storeEnabledMap = await _context.StoreMenuItems
+                .Where(smi => smi.StoreId == storeId)
+                .ToDictionaryAsync(smi => smi.MenuItemId, smi => smi.IsEnabled);
+        }
+
         return menuItems
             .OrderByDescending(m => salesByItem.GetValueOrDefault(m.Id, 0))
             .ThenBy(m => m.SortOrder)
             .ThenBy(m => m.Name)
-            .Select(m => MapToResponse(m, salesByItem.GetValueOrDefault(m.Id, 0)));
+            .Select(m =>
+            {
+                var r = MapToResponse(m, salesByItem.GetValueOrDefault(m.Id, 0));
+                r.IsEnabledInStore = storeId == 0
+                    || !storeEnabledMap.TryGetValue(m.Id, out var enabled)
+                    || enabled;
+                return r;
+            });
+    }
+
+    public async Task<bool> ToggleStoreMenuItemAsync(int menuItemId, int storeId)
+    {
+        var existing = await _context.StoreMenuItems
+            .FirstOrDefaultAsync(smi => smi.StoreId == storeId && smi.MenuItemId == menuItemId);
+
+        if (existing == null)
+        {
+            _context.StoreMenuItems.Add(new StoreMenuItem
+            {
+                StoreId = storeId,
+                MenuItemId = menuItemId,
+                IsEnabled = false,
+                CreatedAt = DateTime.UtcNow,
+            });
+            await _context.SaveChangesAsync();
+            return false;
+        }
+
+        existing.IsEnabled = !existing.IsEnabled;
+        await _context.SaveChangesAsync();
+        return existing.IsEnabled;
     }
 
     public async Task<MenuItemResponse?> GetByIdAsync(int id)

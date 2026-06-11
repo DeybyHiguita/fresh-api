@@ -20,16 +20,19 @@ public class OrderService : IOrderService
         _customerCreditService = customerCreditService;
     }
 
-    public async Task<IEnumerable<OrderResponse>> GetAllAsync()
+    public async Task<IEnumerable<OrderResponse>> GetAllAsync(int storeId = 0)
     {
-        var orders = await _context.Orders
+        var query = _context.Orders
             .Include(o => o.User)
             .Include(o => o.Customer)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.MenuItem)
-            .OrderByDescending(o => o.CreatedAt)
-            .ToListAsync();
+            .AsQueryable();
 
+        if (storeId > 0)
+            query = query.Where(o => o.StoreId == storeId);
+
+        var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
         return orders.Select(MapToResponse);
     }
 
@@ -45,7 +48,7 @@ public class OrderService : IOrderService
         return order == null ? null : MapToResponse(order);
     }
 
-    public async Task<OrderResponse> CreateAsync(OrderRequest request)
+    public async Task<OrderResponse> CreateAsync(OrderRequest request, int storeId = 0)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -101,6 +104,7 @@ public class OrderService : IOrderService
 
         var order = new Order
         {
+            StoreId = storeId,
             UserId = request.UserId,
             CustomerId = request.CustomerId,
             CustomerName = request.CustomerName,

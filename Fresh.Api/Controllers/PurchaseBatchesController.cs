@@ -21,6 +21,8 @@ public class PurchaseBatchesController : ControllerBase
         _tokens       = tokens;
     }
 
+    private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
+
     /// <summary>
     /// Obtiene lotes de compra con paginación (skip/take). Si no se pasan parámetros devuelve todos.
     /// </summary>
@@ -29,11 +31,11 @@ public class PurchaseBatchesController : ControllerBase
     {
         if (skip.HasValue && take.HasValue)
         {
-            var (items, total) = await _batchService.GetPagedAsync(skip.Value, take.Value);
+            var (items, total) = await _batchService.GetPagedAsync(skip.Value, take.Value, StoreId);
             return Ok(new { items, total });
         }
 
-        var batches = await _batchService.GetAllAsync();
+        var batches = await _batchService.GetAllAsync(StoreId);
         return Ok(batches);
     }
 
@@ -48,7 +50,7 @@ public class PurchaseBatchesController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] int? keepExpenseId = null)
     {
-        var (items, total) = await _batchService.GetSummariesAsync(skip, take, search, keepExpenseId);
+        var (items, total) = await _batchService.GetSummariesAsync(skip, take, search, keepExpenseId, StoreId);
         return Ok(new { items, total });
     }
 
@@ -76,7 +78,7 @@ public class PurchaseBatchesController : ControllerBase
 
         try
         {
-            var batch = await _batchService.CreateAsync(request);
+            var batch = await _batchService.CreateAsync(request, StoreId);
             return CreatedAtAction(nameof(GetById), new { id = batch.Id }, batch);
         }
         catch (ArgumentException ex)

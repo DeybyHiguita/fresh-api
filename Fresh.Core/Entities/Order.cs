@@ -3,6 +3,7 @@ namespace Fresh.Core.Entities;
 public class Order
 {
     public int Id { get; set; }
+    public int StoreId { get; set; }
     public int UserId { get; set; }
     public int? CustomerId { get; set; }
     public string? CustomerName { get; set; }
@@ -20,6 +21,9 @@ public class Order
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    // Relaciones de navegaci�n
-    public User? User { get; set; }    public Customer? Customer { get; set; }    public ICollection<OrderItem> OrderItems { get; set; } = [];
+    // Relaciones de navegación
+    public Store? Store { get; set; }
+    public User? User { get; set; }
+    public Customer? Customer { get; set; }
+    public ICollection<OrderItem> OrderItems { get; set; } = [];
 }

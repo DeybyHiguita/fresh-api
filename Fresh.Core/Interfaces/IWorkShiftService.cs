@@ -5,9 +5,9 @@ namespace Fresh.Core.Interfaces;
 
 public interface IWorkShiftService
 {
-    Task<IEnumerable<WorkShiftResponse>> GetAllAsync(int? userId = null, DateOnly? date = null);
+    Task<IEnumerable<WorkShiftResponse>> GetAllAsync(int? userId = null, DateOnly? date = null, int storeId = 0);
     Task<WorkShiftResponse?> GetByIdAsync(int id);
-    Task<WorkShiftResponse> StartShiftAsync(WorkShiftRequest request);
+    Task<WorkShiftResponse> StartShiftAsync(WorkShiftRequest request, int storeId = 0);
     Task<WorkShiftResponse?> EndShiftAsync(int id);
     Task<WorkShiftResponse?> UpdateAsync(int id, WorkShiftRequest request);
     Task<bool> DeleteAsync(int id);

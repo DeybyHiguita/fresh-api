@@ -12,7 +12,7 @@ public class CashRegisterService : ICashRegisterService
 
     public CashRegisterService(FreshDbContext context) { _context = context; }
 
-    public async Task<IEnumerable<CashRegisterResponse>> GetAllAsync(int? periodId = null)
+    public async Task<IEnumerable<CashRegisterResponse>> GetAllAsync(int? periodId = null, int storeId = 0)
     {
         var query = _context.CashRegisters
             .Include(c => c.Period)
@@ -21,6 +21,7 @@ public class CashRegisterService : ICashRegisterService
             .AsQueryable();
 
         if (periodId.HasValue) query = query.Where(c => c.PeriodId == periodId);
+        if (storeId > 0) query = query.Where(c => c.Period!.StoreId == storeId);
 
         var registers = await query.OrderByDescending(c => c.OpeningTime).ToListAsync();
         return registers.Select(MapToResponse);
