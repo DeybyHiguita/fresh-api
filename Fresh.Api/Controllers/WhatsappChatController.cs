@@ -96,6 +96,40 @@ public class WhatsappChatController : ControllerBase
         catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
     }
 
+    /// <summary>Archiva o desarchiva un contacto.</summary>
+    [HttpPatch("contacts/{contactId:int}/archive")]
+    public async Task<IActionResult> SetArchived(int contactId, [FromBody] ContactFlagRequest req)
+    {
+        try { await _chat.SetArchivedAsync(contactId, req.Value); return Ok(); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    /// <summary>Fija o desfija un contacto en la parte superior.</summary>
+    [HttpPatch("contacts/{contactId:int}/pin")]
+    public async Task<IActionResult> SetPinned(int contactId, [FromBody] ContactFlagRequest req)
+    {
+        try { await _chat.SetPinnedAsync(contactId, req.Value); return Ok(); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    /// <summary>Marca el contacto como no leído.</summary>
+    [HttpPost("contacts/{contactId:int}/mark-unread")]
+    public async Task<IActionResult> MarkUnread(int contactId)
+    {
+        try { await _chat.MarkUnreadAsync(contactId); return Ok(); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    /// <summary>Envía al cliente el resumen formateado de una de sus órdenes.</summary>
+    [HttpPost("contacts/{contactId:int}/send-order-summary")]
+    public async Task<ActionResult<WhatsappMessageDto>> SendOrderSummary(int contactId, [FromBody] SendOrderSummaryRequest req)
+    {
+        try { return Ok(await _chat.SendOrderSummaryAsync(contactId, req.OrderId)); }
+        catch (KeyNotFoundException ex)      { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex)                 { return StatusCode(500, new { message = ex.Message }); }
+    }
+
     /// <summary>Marca los mensajes entrantes del contacto como leídos en WhatsApp (doble tick azul).</summary>
     [HttpPost("contacts/{contactId:int}/mark-read")]
     public async Task<IActionResult> MarkRead(int contactId)

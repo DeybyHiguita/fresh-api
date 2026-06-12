@@ -406,6 +406,7 @@ public class OrderService : IOrderService
     private static OrderResponse MapToResponse(Order o) => new()
     {
         Id = o.Id,
+        StoreId = o.StoreId,
         UserId = o.UserId,
         UserName = o.User?.Name ?? "Desconocido",
         CustomerId = o.CustomerId,

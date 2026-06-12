@@ -90,6 +90,8 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(150);
             entity.Property(e => e.LastMessageAt).HasColumnName("last_message_at").HasDefaultValueSql("NOW()");
             entity.Property(e => e.UnreadCount).HasColumnName("unread_count").HasDefaultValue(0);
+            entity.Property(e => e.IsArchived).HasColumnName("is_archived").HasDefaultValue(false);
+            entity.Property(e => e.IsPinned).HasColumnName("is_pinned").HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
         });
 

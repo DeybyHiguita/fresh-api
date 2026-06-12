@@ -6,8 +6,14 @@ public record WhatsappContactDto(
     string Name,
     string LastMessageAt,
     int    UnreadCount,
-    string LastMessage
+    string LastMessage,
+    bool   IsArchived = false,
+    bool   IsPinned   = false
 );
+
+public record ContactFlagRequest(bool Value);
+
+public record SendOrderSummaryRequest(int OrderId);
 
 public record WhatsappMessageDto(
     int     Id,

@@ -27,6 +27,7 @@ public class WhatsAppNotificationService
     {
         var settings = await _appSettings.GetAsync();
         if (!settings.WhatsappNotificationsEnabled) return;
+        if (!settings.WhatsappNotifyOnCreate) return;
         if (!IsConfigured(settings)) return;
 
         var customer = !string.IsNullOrWhiteSpace(order.CustomerName)
@@ -50,6 +51,7 @@ public class WhatsAppNotificationService
     {
         var settings = await _appSettings.GetAsync();
         if (!settings.WhatsappNotificationsEnabled) return;
+        if (!settings.WhatsappNotifyOnUpdate) return;
         if (!IsConfigured(settings)) return;
 
         var customer = !string.IsNullOrWhiteSpace(order.CustomerName)
