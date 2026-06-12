@@ -130,6 +130,34 @@ public class WhatsappChatController : ControllerBase
         catch (Exception ex)                 { return StatusCode(500, new { message = ex.Message }); }
     }
 
+    /// <summary>Envía al cliente el enlace interactivo de Rappi.</summary>
+    [HttpPost("send-rappi")]
+    public async Task<IActionResult> SendRappi([FromBody] DeliveryPromptRequest req)
+    {
+        try
+        {
+            var waId = await _chat.GetContactWaIdAsync(req.ContactId);
+            await _chat.SendRappiLinkAsync(waId);
+            return Ok();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
+    }
+
+    /// <summary>Envía al cliente el enlace interactivo de Didi Food.</summary>
+    [HttpPost("send-didi")]
+    public async Task<IActionResult> SendDidi([FromBody] DeliveryPromptRequest req)
+    {
+        try
+        {
+            var waId = await _chat.GetContactWaIdAsync(req.ContactId);
+            await _chat.SendDidiLinkAsync(waId);
+            return Ok();
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex)            { return StatusCode(500, new { message = ex.Message }); }
+    }
+
     /// <summary>Marca los mensajes entrantes del contacto como leídos en WhatsApp (doble tick azul).</summary>
     [HttpPost("contacts/{contactId:int}/mark-read")]
     public async Task<IActionResult> MarkRead(int contactId)
