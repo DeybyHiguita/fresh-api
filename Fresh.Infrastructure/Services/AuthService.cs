@@ -38,10 +38,7 @@ public class AuthService : IAuthService
         if (!user.IsActive)
             throw new UnauthorizedAccessException("Tu cuenta aún no ha sido activada por un administrador.");
 
-        var stores = user.UserStores
-            .Where(us => us.Store.IsActive)
-            .Select(us => new StoreSummary { Id = us.StoreId, Name = us.Store.Name, IsDefault = us.IsDefault })
-            .ToList();
+        var stores = await BuildStoresListAsync(user);
 
         var defaultStore = stores.FirstOrDefault(s => s.IsDefault) ?? stores.FirstOrDefault();
         var activeStoreId = defaultStore?.Id ?? 0;
@@ -96,14 +93,19 @@ public class AuthService : IAuthService
                 throw new UnauthorizedAccessException("No tienes acceso a esta tienda.");
         }
 
-        var storeExists = await _context.Stores.AnyAsync(s => s.Id == storeId && s.IsActive);
-        if (!storeExists)
-            throw new KeyNotFoundException("Tienda no encontrada o inactiva.");
+        // storeId == 0 → superadmin en modo "todas las tiendas" (vista global)
+        if (storeId != 0)
+        {
+            var storeExists = await _context.Stores.AnyAsync(s => s.Id == storeId && s.IsActive);
+            if (!storeExists)
+                throw new KeyNotFoundException("Tienda no encontrada o inactiva.");
+        }
+        else if (!user.IsSuperAdmin)
+        {
+            throw new UnauthorizedAccessException("No tienes acceso a la vista global.");
+        }
 
-        var stores = user.UserStores
-            .Where(us => us.Store.IsActive)
-            .Select(us => new StoreSummary { Id = us.StoreId, Name = us.Store.Name, IsDefault = us.IsDefault })
-            .ToList();
+        var stores = await BuildStoresListAsync(user);
 
         return new AuthResponse
         {
@@ -117,6 +119,28 @@ public class AuthService : IAuthService
             Stores       = stores,
             Settings     = await _appSettings.GetAsync()
         };
+    }
+
+    /// <summary>
+    /// Lista de tiendas visibles para el usuario.
+    /// Superadmin → todas las tiendas activas. Resto → solo las asignadas en user_stores.
+    /// </summary>
+    private async Task<List<StoreSummary>> BuildStoresListAsync(User user)
+    {
+        if (user.IsSuperAdmin)
+        {
+            var defaultId = user.UserStores.FirstOrDefault(us => us.IsDefault)?.StoreId;
+            return await _context.Stores
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.Name)
+                .Select(s => new StoreSummary { Id = s.Id, Name = s.Name, IsDefault = s.Id == defaultId })
+                .ToListAsync();
+        }
+
+        return user.UserStores
+            .Where(us => us.Store.IsActive)
+            .Select(us => new StoreSummary { Id = us.StoreId, Name = us.Store.Name, IsDefault = us.IsDefault })
+            .ToList();
     }
 
     private string GenerateToken(User user, int storeId)

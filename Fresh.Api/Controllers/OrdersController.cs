@@ -29,6 +29,18 @@ public class OrdersController : ControllerBase
 
     private int StoreId => int.TryParse(User.FindFirst("store_id")?.Value, out var id) ? id : 0;
 
+    /// <summary>
+    /// Notifica a los admins de la tienda de la orden y a los superadmins en vista global.
+    /// </summary>
+    private Task NotifyAdminsAsync(string method, OrderResponse order)
+    {
+        var storeGroup = OrderHub.StoreAdminsGroup(order.StoreId);
+        var groups = storeGroup == "store:all:admins"
+            ? new[] { "store:all:admins" }
+            : new[] { storeGroup, "store:all:admins" };
+        return _orderHub.Clients.Groups(groups).SendAsync(method, order);
+    }
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<OrderResponse>>> GetAll()
     {
@@ -54,8 +66,8 @@ public class OrdersController : ControllerBase
         {
             var order = await _orderService.CreateAsync(request, StoreId);
 
-            // Notificar a todos los administradores conectados
-            await _orderHub.Clients.Group("admins").SendAsync("NewOrder", order);
+            // Notificar a los administradores de esta tienda (+ superadmins en vista global)
+            await NotifyAdminsAsync("NewOrder", order);
 
             // WhatsApp
             await _whatsApp.NotifyNewOrderAsync(order);
@@ -83,7 +95,7 @@ public class OrdersController : ControllerBase
         try
         {
             var order = await _orderService.UpdateStatusAsync(id, request.Status, request.Notes);
-            await _orderHub.Clients.Group("admins").SendAsync("OrderUpdated", order);
+            await NotifyAdminsAsync("OrderUpdated", order);
 
             // WhatsApp
             await _whatsApp.NotifyStatusChangedAsync(order);
@@ -133,7 +145,7 @@ public class OrdersController : ControllerBase
         {
             var order = await _orderService.UpdateItemsAsync(id, request.Items);
             if (order == null) return NotFound();
-            await _orderHub.Clients.Group("admins").SendAsync("OrderUpdated", order);
+            await NotifyAdminsAsync("OrderUpdated", order);
             return Ok(order);
         }
         catch (KeyNotFoundException ex)

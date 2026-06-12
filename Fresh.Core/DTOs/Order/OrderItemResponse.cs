@@ -14,6 +14,7 @@ public class OrderItemResponse
 public class OrderResponse
 {
     public int Id { get; set; }
+    public int StoreId { get; set; }
     public int UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
     public int? CustomerId { get; set; }

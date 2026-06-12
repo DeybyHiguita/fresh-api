@@ -9,6 +9,8 @@ namespace Fresh.Infrastructure.Services;
 public class AppSettingsService : IAppSettingsService
 {
     private const string KeyWhatsapp       = "whatsapp_notifications_enabled";
+    private const string KeyNotifyCreate   = "whatsapp_notify_on_create";
+    private const string KeyNotifyUpdate   = "whatsapp_notify_on_update";
     private const string KeyPhone          = "whatsapp_admin_phone";
     private const string KeyToken          = "whatsapp_access_token";
     private const string KeyPhoneNumberId  = "whatsapp_phone_number_id";
@@ -30,7 +32,13 @@ public class AppSettingsService : IAppSettingsService
     {
         await Upsert(KeyWhatsapp,
             request.WhatsappNotificationsEnabled ? "true" : "false",
-            "Enviar notificación por WhatsApp al administrador cuando se crea una orden");
+            "Habilitar notificaciones por WhatsApp al administrador");
+        await Upsert(KeyNotifyCreate,
+            request.WhatsappNotifyOnCreate ? "true" : "false",
+            "Notificar al administrador cuando se crea una orden nueva");
+        await Upsert(KeyNotifyUpdate,
+            request.WhatsappNotifyOnUpdate ? "true" : "false",
+            "Notificar al administrador cuando una orden cambia de estado");
         await Upsert(KeyPhone,
             request.WhatsappAdminPhone,
             "Número WhatsApp del administrador (formato internacional, ej: 573001234567)");
@@ -49,9 +57,17 @@ public class AppSettingsService : IAppSettingsService
     private AppSettingsResponse Map(List<AppSetting> list)
     {
         string Get(string k) => list.FirstOrDefault(s => s.Key == k)?.Value ?? string.Empty;
+        // Para flags nuevos: si la clave no existe aún, default = true (retrocompatibilidad)
+        bool GetBoolDefaultTrue(string k)
+        {
+            var v = list.FirstOrDefault(s => s.Key == k)?.Value;
+            return v == null || v == "true";
+        }
         return new AppSettingsResponse
         {
             WhatsappNotificationsEnabled = Get(KeyWhatsapp) == "true",
+            WhatsappNotifyOnCreate       = GetBoolDefaultTrue(KeyNotifyCreate),
+            WhatsappNotifyOnUpdate       = GetBoolDefaultTrue(KeyNotifyUpdate),
             WhatsappAdminPhone           = Get(KeyPhone),
             WhatsappAccessToken          = Get(KeyToken),
             WhatsappPhoneNumberId        = Get(KeyPhoneNumberId),

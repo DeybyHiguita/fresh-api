@@ -3,6 +3,8 @@ namespace Fresh.Core.DTOs.AppSettings;
 public class AppSettingsResponse
 {
     public bool   WhatsappNotificationsEnabled { get; set; }
+    public bool   WhatsappNotifyOnCreate       { get; set; } = true;
+    public bool   WhatsappNotifyOnUpdate       { get; set; } = true;
     public string WhatsappAdminPhone           { get; set; } = string.Empty;
     public string WhatsappAccessToken          { get; set; } = string.Empty;
     public string WhatsappPhoneNumberId        { get; set; } = string.Empty;
@@ -11,6 +13,8 @@ public class AppSettingsResponse
 public class UpdateAppSettingsRequest
 {
     public bool   WhatsappNotificationsEnabled { get; set; }
+    public bool   WhatsappNotifyOnCreate       { get; set; } = true;
+    public bool   WhatsappNotifyOnUpdate       { get; set; } = true;
     public string WhatsappAdminPhone           { get; set; } = string.Empty;
     public string WhatsappAccessToken          { get; set; } = string.Empty;
     public string WhatsappPhoneNumberId        { get; set; } = string.Empty;

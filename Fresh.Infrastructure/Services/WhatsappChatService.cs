@@ -29,8 +29,11 @@ public class WhatsappChatService
 
     public async Task<List<WhatsappContactDto>> GetContactsAsync()
     {
+        // Orden: fijados primero, luego por último mensaje (los archivados conservan su orden;
+        // el frontend los separa en una sección aparte).
         var contacts = await _db.WhatsappContacts
-            .OrderByDescending(c => c.LastMessageAt)
+            .OrderByDescending(c => c.IsPinned)
+            .ThenByDescending(c => c.LastMessageAt)
             .ToListAsync();
 
         var result = new List<WhatsappContactDto>();
@@ -48,10 +51,39 @@ public class WhatsappChatService
                 string.IsNullOrWhiteSpace(c.Name) ? c.WaId : c.Name,
                 c.LastMessageAt.ToString("o"),
                 c.UnreadCount,
-                last.Length > 60 ? last[..60] + "…" : last
+                last.Length > 60 ? last[..60] + "…" : last,
+                c.IsArchived,
+                c.IsPinned
             ));
         }
         return result;
+    }
+
+    // ── Acciones sobre contactos (archivar / fijar / no leído) ────────────
+
+    public async Task SetArchivedAsync(int contactId, bool value)
+    {
+        var contact = await _db.WhatsappContacts.FindAsync(contactId)
+            ?? throw new KeyNotFoundException("Contacto no encontrado.");
+        contact.IsArchived = value;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task SetPinnedAsync(int contactId, bool value)
+    {
+        var contact = await _db.WhatsappContacts.FindAsync(contactId)
+            ?? throw new KeyNotFoundException("Contacto no encontrado.");
+        contact.IsPinned = value;
+        await _db.SaveChangesAsync();
+    }
+
+    /// <summary>Marca el contacto como no leído (incrementa el contador si está en cero).</summary>
+    public async Task MarkUnreadAsync(int contactId)
+    {
+        var contact = await _db.WhatsappContacts.FindAsync(contactId)
+            ?? throw new KeyNotFoundException("Contacto no encontrado.");
+        if (contact.UnreadCount == 0) contact.UnreadCount = 1;
+        await _db.SaveChangesAsync();
     }
 
     // ── Mensajes de un contacto ───────────────────────────────────────────
@@ -165,6 +197,59 @@ public class WhatsappChatService
         return new WhatsappMessageDto(msg.Id, "out", msg.Body, msg.Status, msg.CreatedAt.ToString("o"),
             WaMessageId: msg.WaMessageId,
             ReplyToWaMessageId: msg.ReplyToWaMessageId);
+    }
+
+    // ── Enviar resumen de una orden al cliente ────────────────────────────
+
+    public async Task<WhatsappMessageDto> SendOrderSummaryAsync(int contactId, int orderId)
+    {
+        var order = await _db.Orders
+            .Include(o => o.OrderItems)
+                .ThenInclude(i => i.MenuItem)
+            .FirstOrDefaultAsync(o => o.Id == orderId)
+            ?? throw new KeyNotFoundException($"Orden #{orderId} no encontrada.");
+
+        var text = BuildOrderSummaryText(order);
+        return await SendReplyAsync(new SendMessageRequest(contactId, text));
+    }
+
+    private static string BuildOrderSummaryText(Order order)
+    {
+        var statusEmoji = order.Status switch
+        {
+            "Pendiente"      => "🕐",
+            "En preparación" => "🍳",
+            "Listo"          => "✅",
+            "Entregado"      => "📦",
+            "Cancelado"      => "❌",
+            _                => "🧾",
+        };
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"🧾 *Resumen de tu pedido #{order.Id}*");
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+            sb.AppendLine($"👤 {order.CustomerName}");
+        sb.AppendLine($"{statusEmoji} Estado: *{order.Status}*");
+        sb.AppendLine($"🍽 Tipo: {order.OrderType}");
+        sb.AppendLine();
+
+        foreach (var item in order.OrderItems)
+        {
+            var name = item.MenuItem?.Name ?? "Producto";
+            sb.Append($"• {item.Quantity}x {name}  ${item.Subtotal:N0}");
+            if (!string.IsNullOrWhiteSpace(item.ItemNotes))
+                sb.Append($"  _{item.ItemNotes}_");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
+        if (order.Discount > 0)
+            sb.AppendLine($"💸 Descuento: -${order.Discount:N0}");
+        sb.AppendLine($"💰 *Total: ${order.Total:N0} COP*");
+        sb.AppendLine($"💳 Pago: {order.PaymentMethod}");
+        sb.AppendLine();
+        sb.AppendLine("¡Gracias por tu compra! 🙌");
+        return sb.ToString().TrimEnd();
     }
 
     // ── Upsert contacto + guardar mensaje entrante (llamado desde webhook) ─
