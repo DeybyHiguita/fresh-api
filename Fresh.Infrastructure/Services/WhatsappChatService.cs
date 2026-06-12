@@ -881,7 +881,7 @@ public class WhatsappChatService
             {
                 ContactId = contact.Id,
                 Direction = "out",
-                Body      = "� Didi Food",
+                Body      = "🔴 Enlace de Didi enviado",
                 Status    = "sent",
                 CreatedAt = DateTime.UtcNow,
             });
