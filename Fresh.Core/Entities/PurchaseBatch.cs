@@ -13,4 +13,5 @@ public class PurchaseBatch
     // Relaciones
     public Store? Store { get; set; }
     public ICollection<PurchaseDetail> PurchaseDetails { get; set; } = [];
+    public ICollection<PurchaseBatchInvoice> Invoices { get; set; } = [];
 }

@@ -89,6 +89,7 @@ public class PurchaseBatchService : IPurchaseBatchService
         var batch = await _context.PurchaseBatches
             .Include(b => b.PurchaseDetails)
                 .ThenInclude(d => d.Product)
+            .Include(b => b.Invoices)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (batch == null) return null;
@@ -148,6 +149,63 @@ public class PurchaseBatchService : IPurchaseBatchService
         _context.PurchaseBatches.Remove(batch);
         await _context.SaveChangesAsync();
 
+        return true;
+    }
+
+    // ── Facturas escaneadas del lote ────────────────────────────────────────
+
+    public async Task<PurchaseBatchInvoiceResponse> AddInvoiceAsync(int batchId, PurchaseBatchInvoiceRequest request)
+    {
+        var batchExists = await _context.PurchaseBatches.AnyAsync(b => b.Id == batchId);
+        if (!batchExists)
+            throw new KeyNotFoundException($"El lote con ID {batchId} no existe");
+
+        var invoice = new PurchaseBatchInvoice
+        {
+            BatchId       = batchId,
+            Supplier      = request.Supplier,
+            InvoiceNumber = request.InvoiceNumber,
+            InvoiceDate   = request.InvoiceDate,
+            Total         = request.Total,
+            ImageUrl      = request.ImageUrl,
+            FileName      = request.FileName,
+            CreatedAt     = DateTime.UtcNow,
+        };
+
+        _context.PurchaseBatchInvoices.Add(invoice);
+        await _context.SaveChangesAsync();
+
+        return MapInvoiceToResponse(invoice);
+    }
+
+    public async Task<IEnumerable<PurchaseBatchInvoiceResponse>> GetInvoicesAsync(int batchId)
+    {
+        return await _context.PurchaseBatchInvoices
+            .Where(i => i.BatchId == batchId)
+            .OrderByDescending(i => i.CreatedAt)
+            .Select(i => new PurchaseBatchInvoiceResponse
+            {
+                Id            = i.Id,
+                BatchId       = i.BatchId,
+                Supplier      = i.Supplier,
+                InvoiceNumber = i.InvoiceNumber,
+                InvoiceDate   = i.InvoiceDate,
+                Total         = i.Total,
+                ImageUrl      = i.ImageUrl,
+                FileName      = i.FileName,
+                CreatedAt     = i.CreatedAt,
+            })
+            .ToListAsync();
+    }
+
+    public async Task<bool> RemoveInvoiceAsync(int batchId, int invoiceId)
+    {
+        var invoice = await _context.PurchaseBatchInvoices
+            .FirstOrDefaultAsync(i => i.Id == invoiceId && i.BatchId == batchId);
+        if (invoice == null) return false;
+
+        _context.PurchaseBatchInvoices.Remove(invoice);
+        await _context.SaveChangesAsync();
         return true;
     }
 
@@ -319,10 +377,27 @@ public class PurchaseBatchService : IPurchaseBatchService
             Details = batch.PurchaseDetails
                 .Select(d => MapDetailToResponse(d, d.Product))
                 .ToList(),
+            Invoices = batch.Invoices
+                .OrderByDescending(i => i.CreatedAt)
+                .Select(MapInvoiceToResponse)
+                .ToList(),
             LinkedExpenseId       = exp.ExpenseId == 0 ? null : exp.ExpenseId,
             LinkedExpenseAmountPaid = exp.ExpenseId == 0 ? null : exp.AmountPaid,
         };
     }
+
+    private static PurchaseBatchInvoiceResponse MapInvoiceToResponse(PurchaseBatchInvoice i) => new()
+    {
+        Id            = i.Id,
+        BatchId       = i.BatchId,
+        Supplier      = i.Supplier,
+        InvoiceNumber = i.InvoiceNumber,
+        InvoiceDate   = i.InvoiceDate,
+        Total         = i.Total,
+        ImageUrl      = i.ImageUrl,
+        FileName      = i.FileName,
+        CreatedAt     = i.CreatedAt,
+    };
 
     private static PurchaseDetailResponse MapDetailToResponse(PurchaseDetail detail, Product product) => new()
     {

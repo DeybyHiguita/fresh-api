@@ -13,6 +13,11 @@ public interface IPurchaseBatchService
     Task<PurchaseBatchResponse?> UpdateAsync(int id, PurchaseBatchRequest request);
     Task<bool> DeleteAsync(int id);
 
+    // Facturas escaneadas del lote
+    Task<PurchaseBatchInvoiceResponse> AddInvoiceAsync(int batchId, PurchaseBatchInvoiceRequest request);
+    Task<IEnumerable<PurchaseBatchInvoiceResponse>> GetInvoicesAsync(int batchId);
+    Task<bool> RemoveInvoiceAsync(int batchId, int invoiceId);
+
     // Detalle dentro del lote
     Task<PurchaseDetailResponse> AddDetailAsync(int batchId, PurchaseDetailRequest request);
     Task<PurchaseDetailResponse?> UpdateDetailAsync(int batchId, int detailId, PurchaseDetailRequest request);

@@ -190,6 +190,37 @@ public class PurchaseBatchesController : ControllerBase
         return NoContent();
     }
 
+    // ── Facturas escaneadas del lote ─────────────────────────────────────────
+
+    /// <summary>Lista las facturas escaneadas asociadas al lote.</summary>
+    [HttpGet("{id}/invoices")]
+    public async Task<ActionResult<IEnumerable<PurchaseBatchInvoiceResponse>>> GetInvoices(int id)
+        => Ok(await _batchService.GetInvoicesAsync(id));
+
+    /// <summary>Registra una factura escaneada en el lote.</summary>
+    [HttpPost("{id}/invoices")]
+    public async Task<ActionResult<PurchaseBatchInvoiceResponse>> AddInvoice(int id, [FromBody] PurchaseBatchInvoiceRequest request)
+    {
+        try
+        {
+            var invoice = await _batchService.AddInvoiceAsync(id, request);
+            return CreatedAtAction(nameof(GetById), new { id }, invoice);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Elimina una factura escaneada del lote.</summary>
+    [HttpDelete("{id}/invoices/{invoiceId}")]
+    public async Task<IActionResult> RemoveInvoice(int id, int invoiceId)
+    {
+        var result = await _batchService.RemoveInvoiceAsync(id, invoiceId);
+        if (!result) return NotFound(new { message = "Factura no encontrada" });
+        return NoContent();
+    }
+
     // ── Compartir lote (enlace público) ──────────────────────────────────────
 
     /// <summary>

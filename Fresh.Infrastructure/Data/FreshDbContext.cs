@@ -18,6 +18,7 @@ public class FreshDbContext : DbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<PurchaseBatch> PurchaseBatches => Set<PurchaseBatch>();
     public DbSet<PurchaseDetail> PurchaseDetails => Set<PurchaseDetail>();
+    public DbSet<PurchaseBatchInvoice> PurchaseBatchInvoices => Set<PurchaseBatchInvoice>();
     public DbSet<WorkShift> WorkShifts => Set<WorkShift>();
     public DbSet<BreakTime> BreakTimes => Set<BreakTime>();
     public DbSet<DailyWorkedHours> DailyWorkedHours => Set<DailyWorkedHours>();
@@ -523,6 +524,26 @@ public class FreshDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => e.BatchId).HasDatabaseName("ix_purchase_details_batch_id");
             entity.HasIndex(e => e.ProductId).HasDatabaseName("ix_purchase_details_product_id");
+        });
+
+        modelBuilder.Entity<PurchaseBatchInvoice>(entity =>
+        {
+            entity.ToTable("purchase_batch_invoices");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.BatchId).HasColumnName("batch_id");
+            entity.Property(e => e.Supplier).HasColumnName("supplier").HasMaxLength(200);
+            entity.Property(e => e.InvoiceNumber).HasColumnName("invoice_number").HasMaxLength(100);
+            entity.Property(e => e.InvoiceDate).HasColumnName("invoice_date");
+            entity.Property(e => e.Total).HasColumnName("total").HasPrecision(12, 2).HasDefaultValue(0m);
+            entity.Property(e => e.ImageUrl).HasColumnName("image_url");
+            entity.Property(e => e.FileName).HasColumnName("file_name").HasMaxLength(255);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            entity.HasOne(e => e.Batch)
+                  .WithMany(b => b.Invoices)
+                  .HasForeignKey(e => e.BatchId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.BatchId).HasDatabaseName("ix_purchase_batch_invoices_batch_id");
         });
 
         modelBuilder.Entity<WorkShift>(entity =>
