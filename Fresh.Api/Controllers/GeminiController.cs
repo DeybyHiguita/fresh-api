@@ -18,12 +18,14 @@ public class GeminiController(
     IConfiguration config,
     GoogleDriveService driveService,
     ILogService logService,
+    IAppSettingsService appSettings,
     ILogger<GeminiController> logger) : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
     private readonly IConfiguration _config               = config;
     private readonly GoogleDriveService _driveService      = driveService;
     private readonly ILogService _logService               = logService;
+    private readonly IAppSettingsService _appSettings      = appSettings;
     private readonly ILogger<GeminiController> _logger     = logger;
 
     // ── DTOs ─────────────────────────────────────────────────────────────────
@@ -51,7 +53,7 @@ public class GeminiController(
     [HttpPost("analyze-invoice")]
     public async Task<IActionResult> AnalyzeInvoice([FromBody] AnalyzeRequest request)
     {
-        var apiKey = _config["Gemini:ApiKey"];
+        var apiKey = await _appSettings.GetGeminiApiKeyAsync();
         if (string.IsNullOrWhiteSpace(apiKey))
             return StatusCode(500, new { message = "Gemini API key not configured" });
 

@@ -41,6 +41,7 @@ builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ICustomerCreditService, CustomerCreditService>();
 builder.Services.AddScoped<IAppPageService, AppPageService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+builder.Services.AddSingleton<ISecretProtector, SecretProtector>();
 builder.Services.AddScoped<IAppSettingsService, AppSettingsService>();
 builder.Services.AddScoped<ISidebarNavConfigService, SidebarNavConfigService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
