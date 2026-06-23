@@ -9,6 +9,12 @@ public class InvestmentNeedItem
     public int? PurchaseBatchId { get; set; }
     public int? ProductId { get; set; }
     public string? Description { get; set; }
+
+    // Referencia para estimar el costo del ítem (sobre todo productos)
+    public decimal? Quantity { get; set; }
+    public decimal? UnitPrice { get; set; }
+    public decimal? EstimatedCost { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     // Navigation

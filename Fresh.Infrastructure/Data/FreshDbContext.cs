@@ -968,6 +968,9 @@ public class FreshDbContext : DbContext
             entity.Property(e => e.PurchaseBatchId).HasColumnName("purchase_batch_id");
             entity.Property(e => e.ProductId).HasColumnName("product_id");
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(300);
+            entity.Property(e => e.Quantity).HasColumnName("quantity").HasPrecision(12, 2);
+            entity.Property(e => e.UnitPrice).HasColumnName("unit_price").HasPrecision(12, 2);
+            entity.Property(e => e.EstimatedCost).HasColumnName("estimated_cost").HasPrecision(12, 2);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
             entity.HasIndex(e => e.NeedId).HasDatabaseName("ix_investment_need_items_need_id");
             entity.HasOne(e => e.Need).WithMany(n => n.Items).HasForeignKey(e => e.NeedId).OnDelete(DeleteBehavior.Cascade);

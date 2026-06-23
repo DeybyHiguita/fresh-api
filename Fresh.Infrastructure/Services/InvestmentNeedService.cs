@@ -97,6 +97,9 @@ public class InvestmentNeedService : IInvestmentNeedService
                 PurchaseBatchId = item.PurchaseBatchId,
                 ProductId       = item.ProductId,
                 Description     = item.Description,
+                Quantity        = item.Quantity,
+                UnitPrice       = item.UnitPrice,
+                EstimatedCost   = item.EstimatedCost,
                 CreatedAt       = DateTimeOffset.UtcNow,
             });
         }
@@ -157,6 +160,9 @@ public class InvestmentNeedService : IInvestmentNeedService
                 PurchaseBatchId = item.PurchaseBatchId,
                 ProductId       = item.ProductId,
                 Description     = item.Description,
+                Quantity        = item.Quantity,
+                UnitPrice       = item.UnitPrice,
+                EstimatedCost   = item.EstimatedCost,
                 CreatedAt       = DateTimeOffset.UtcNow,
             });
         }
@@ -297,6 +303,9 @@ public class InvestmentNeedService : IInvestmentNeedService
                 ProductId         = i.ProductId,
                 ProductName       = i.Product?.Name,
                 Description       = i.Description,
+                Quantity          = i.Quantity,
+                UnitPrice         = i.UnitPrice,
+                EstimatedCost     = i.EstimatedCost,
             }).ToList(),
         };
     }
