@@ -140,6 +140,8 @@ public class InvestmentService : IInvestmentService
             ProductId = request.ProductId,
             Description = request.Description,
             Amount = request.Amount,
+            Quantity = request.Quantity,
+            UnitPrice = request.UnitPrice,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -182,6 +184,8 @@ public class InvestmentService : IInvestmentService
         item.ProductId = request.ProductId;
         item.Description = request.Description;
         item.Amount = request.Amount;
+        item.Quantity = request.Quantity;
+        item.UnitPrice = request.UnitPrice;
 
         if (item.Investment != null)
             item.Investment.UpdatedAt = DateTimeOffset.UtcNow;
@@ -282,6 +286,8 @@ public class InvestmentService : IInvestmentService
             ProductName = it.Product?.Name,
             Description = it.Description,
             Amount = it.Amount,
+            Quantity = it.Quantity,
+            UnitPrice = it.UnitPrice,
             CreatedAt = it.CreatedAt,
         };
     }

@@ -13,7 +13,11 @@ public class InvestmentItem
     
     public string? Description { get; set; }
     public decimal Amount { get; set; }
-    
+
+    // Referencia opcional (sobre todo para productos): cantidad y valor unitario usados al calcular el monto.
+    public decimal? Quantity { get; set; }
+    public decimal? UnitPrice { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navegación

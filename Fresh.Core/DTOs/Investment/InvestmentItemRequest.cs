@@ -19,4 +19,8 @@ public class InvestmentItemRequest
     [Required]
     [Range(0.01, double.MaxValue, ErrorMessage = "El monto debe ser mayor a 0")]
     public decimal Amount { get; set; }
+
+    // Referencia opcional: cantidad y valor unitario (sobre todo para productos)
+    public decimal? Quantity { get; set; }
+    public decimal? UnitPrice { get; set; }
 }
