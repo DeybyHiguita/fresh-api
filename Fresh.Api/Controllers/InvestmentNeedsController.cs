@@ -90,7 +90,8 @@ public class InvestmentNeedsController : ControllerBase
     {
         try
         {
-            var investments = await _needService.ApproveAsync(id);
+            var storeId = int.TryParse(User.FindFirst("store_id")?.Value, out var sid) ? sid : 0;
+            var investments = await _needService.ApproveAsync(id, storeId);
             return Ok(investments);
         }
         catch (KeyNotFoundException ex)

@@ -183,7 +183,7 @@ public class InvestmentNeedService : IInvestmentNeedService
         return true;
     }
 
-    public async Task<List<InvestmentResponse>> ApproveAsync(int needId)
+    public async Task<List<InvestmentResponse>> ApproveAsync(int needId, int storeId = 0)
     {
         var need = await LoadNeedWithRelations(needId);
         if (need == null)
@@ -214,6 +214,43 @@ public class InvestmentNeedService : IInvestmentNeedService
             assignment.Status       = "Aprobado";
             assignment.UpdatedAt    = DateTimeOffset.UtcNow;
             createdInvestments.Add(investment);
+        }
+
+        // Crear un lote de compras con los productos enlazados a la solicitud
+        var productItems = need.Items
+            .Where(i => i.ProductId != null && (string.IsNullOrEmpty(i.ItemType) || i.ItemType == "product"))
+            .ToList();
+
+        if (productItems.Count > 0)
+        {
+            var batch = new PurchaseBatch
+            {
+                StoreId   = storeId,
+                BatchName = $"Solicitud: {need.Title}",
+                StartDate = today,
+                EndDate   = today,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            _context.PurchaseBatches.Add(batch);
+            await _context.SaveChangesAsync();
+
+            foreach (var it in productItems)
+            {
+                var qty   = it.Quantity ?? 1m;
+                var unit  = it.UnitPrice ?? 0m;
+                var total = it.EstimatedCost ?? (qty * unit);
+                _context.PurchaseDetails.Add(new PurchaseDetail
+                {
+                    BatchId    = batch.Id,
+                    ProductId  = it.ProductId!.Value,
+                    Quantity   = qty,
+                    UnitPrice  = unit,
+                    TotalValue = total,
+                    CreatedAt  = DateTime.UtcNow,
+                    UpdatedAt  = DateTime.UtcNow,
+                });
+            }
         }
 
         need.Status    = "Aprobada";
