@@ -48,6 +48,10 @@ public class GeminiController(
         string? SubFolderId,
         bool AutoMonthFolder = false);
 
+    public record AnalyzeTextRequest(
+        string TextContent,
+        IEnumerable<ProductHint>? Products = null);
+
     // ── Endpoints ─────────────────────────────────────────────────────────────
 
     [HttpPost("analyze-invoice")]
@@ -131,6 +135,51 @@ public class GeminiController(
                 .ToDictionary(p => p.Name, p => (object)p.Value.Clone());
             merged["driveFileUrl"] = driveFileUrl;
             return Ok(merged);
+        }
+
+        return Content(responseBody, "application/json");
+    }
+
+    [HttpPost("analyze-text-invoice")]
+    public async Task<IActionResult> AnalyzeTextInvoice([FromBody] AnalyzeTextRequest request)
+    {
+        var apiKey = await _appSettings.GetGeminiApiKeyAsync();
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return StatusCode(500, new { message = "Gemini API key not configured" });
+
+        if (string.IsNullOrWhiteSpace(request.TextContent))
+            return BadRequest(new { message = "El texto de la factura no puede estar vacío" });
+
+        var prompt = BuildPrompt(request.Products);
+
+        var body = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    parts = new object[]
+                    {
+                        new { text = $"Texto de la factura:\n\n{request.TextContent}\n\n---\n\n{prompt}" }
+                    }
+                }
+            },
+            generationConfig = new { temperature = 0.1 }
+        };
+
+        var client = _httpClientFactory.CreateClient();
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={apiKey}";
+
+        var response     = await client.PostAsync(url, new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await LogErrorAsync(
+                $"Gemini text-invoice API retornó {(int)response.StatusCode}",
+                responseBody,
+                transactionData: $"TextLength={request.TextContent?.Length}");
+            return StatusCode((int)response.StatusCode, new { message = "Error de Gemini", detail = responseBody });
         }
 
         return Content(responseBody, "application/json");
