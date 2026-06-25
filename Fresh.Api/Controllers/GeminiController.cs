@@ -15,14 +15,12 @@ namespace Fresh.Api.Controllers;
 [Authorize]
 public class GeminiController(
     IHttpClientFactory httpClientFactory,
-    IConfiguration config,
     GoogleDriveService driveService,
     ILogService logService,
     IAppSettingsService appSettings,
     ILogger<GeminiController> logger) : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
-    private readonly IConfiguration _config               = config;
     private readonly GoogleDriveService _driveService      = driveService;
     private readonly ILogService _logService               = logService;
     private readonly IAppSettingsService _appSettings      = appSettings;
@@ -66,7 +64,6 @@ public class GeminiController(
             return StatusCode(500, new { message = "Gemini API key not configured" });
 
         var prompt = BuildPrompt(request.Products);
-
         var body = new
         {
             contents = new[]
@@ -84,14 +81,9 @@ public class GeminiController(
         };
 
         var client = _httpClientFactory.CreateClient();
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={apiKey}";
+        var url = GeminiUrl(apiKey);
 
-        var geminiTask = client.PostAsync(
-            url,
-            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
-        );
-
-        // Subida a Drive en paralelo
+        // Subida a Drive en paralelo mientras Gemini procesa
         var driveFileUrl = (string?)null;
         Task<string>? driveTask = null;
         try
@@ -108,8 +100,7 @@ public class GeminiController(
             await LogErrorAsync("Google Drive no configurado al analizar factura", ex.ToString());
         }
 
-        var response     = await geminiTask;
-        var responseBody = await response.Content.ReadAsStringAsync();
+        var (response, responseBody) = await CallGeminiWithRetryAsync(client, url, JsonSerializer.Serialize(body));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -117,7 +108,6 @@ public class GeminiController(
                 $"Gemini API retornó {(int)response.StatusCode}",
                 responseBody,
                 transactionData: $"MimeType={request.MimeType}, FileName={request.FileName}");
-
             return StatusCode((int)response.StatusCode, new { message = "Error de Gemini", detail = responseBody });
         }
 
@@ -155,7 +145,6 @@ public class GeminiController(
             return BadRequest(new { message = "El texto de la factura no puede estar vacío" });
 
         var prompt = BuildPrompt(request.Products);
-
         var body = new
         {
             contents = new[]
@@ -172,10 +161,7 @@ public class GeminiController(
         };
 
         var client = _httpClientFactory.CreateClient();
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={apiKey}";
-
-        var response     = await client.PostAsync(url, new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
-        var responseBody = await response.Content.ReadAsStringAsync();
+        var (response, responseBody) = await CallGeminiWithRetryAsync(client, GeminiUrl(apiKey), JsonSerializer.Serialize(body));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -231,9 +217,7 @@ public class GeminiController(
         };
 
         var client = _httpClientFactory.CreateClient();
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={apiKey}";
-        var response     = await client.PostAsync(url, new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
-        var responseBody = await response.Content.ReadAsStringAsync();
+        var (response, responseBody) = await CallGeminiWithRetryAsync(client, GeminiUrl(apiKey), JsonSerializer.Serialize(body));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -267,6 +251,44 @@ public class GeminiController(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static string GeminiUrl(string apiKey) =>
+        $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={apiKey}";
+
+    /// <summary>
+    /// Llama a Gemini y reintenta hasta <paramref name="maxRetries"/> veces con backoff
+    /// exponencial cuando la respuesta es 429 (cuota) o 503 (servidor saturado).
+    /// Delays: 2 s → 4 s → 8 s.
+    /// </summary>
+    private async Task<(HttpResponseMessage Response, string Body)> CallGeminiWithRetryAsync(
+        HttpClient client, string url, string jsonBody, int maxRetries = 3)
+    {
+        HttpResponseMessage response = null!;
+        string body = string.Empty;
+        int delayMs = 2000;
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            if (attempt > 0)
+            {
+                _logger.LogWarning(
+                    "Gemini retornó {Code}, reintentando en {Delay} ms (intento {Attempt}/{Max})",
+                    (int)response.StatusCode, delayMs, attempt, maxRetries);
+                await Task.Delay(delayMs);
+                delayMs *= 2;
+            }
+
+            response = await client.PostAsync(url,
+                new StringContent(jsonBody, Encoding.UTF8, "application/json"));
+            body = await response.Content.ReadAsStringAsync();
+
+            var code = (int)response.StatusCode;
+            if (response.IsSuccessStatusCode || (code != 429 && code != 503))
+                break;
+        }
+
+        return (response, body);
+    }
 
     /// <summary>
     /// Construye el prompt para Gemini. Si el frontend envió el catálogo de productos,
