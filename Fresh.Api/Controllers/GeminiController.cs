@@ -52,6 +52,10 @@ public class GeminiController(
         string TextContent,
         IEnumerable<ProductHint>? Products = null);
 
+    public record AnalyzeDriveRequest(
+        string DriveFileUrl,
+        IEnumerable<ProductHint>? Products = null);
+
     // ── Endpoints ─────────────────────────────────────────────────────────────
 
     [HttpPost("analyze-invoice")]
@@ -179,6 +183,62 @@ public class GeminiController(
                 $"Gemini text-invoice API retornó {(int)response.StatusCode}",
                 responseBody,
                 transactionData: $"TextLength={request.TextContent?.Length}");
+            return StatusCode((int)response.StatusCode, new { message = "Error de Gemini", detail = responseBody });
+        }
+
+        return Content(responseBody, "application/json");
+    }
+
+    [HttpPost("analyze-drive-invoice")]
+    public async Task<IActionResult> AnalyzeDriveInvoice([FromBody] AnalyzeDriveRequest request)
+    {
+        var apiKey = await _appSettings.GetGeminiApiKeyAsync();
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return StatusCode(500, new { message = "Gemini API key not configured" });
+
+        if (string.IsNullOrWhiteSpace(request.DriveFileUrl))
+            return BadRequest(new { message = "URL de Drive requerida" });
+
+        string base64Image;
+        string mimeType;
+        try
+        {
+            (base64Image, mimeType) = await _driveService.DownloadFileAsBase64Async(request.DriveFileUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo descargar imagen de Drive para re-análisis");
+            await LogErrorAsync("Error descargando imagen de Drive para re-análisis", ex.ToString(),
+                transactionData: $"DriveUrl={request.DriveFileUrl}");
+            return StatusCode(500, new { message = $"No se pudo descargar la imagen de Drive: {ex.Message}" });
+        }
+
+        var prompt = BuildPrompt(request.Products);
+        var body = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    parts = new object[]
+                    {
+                        new { inlineData = new { mimeType, data = base64Image } },
+                        new { text = prompt }
+                    }
+                }
+            },
+            generationConfig = new { temperature = 0.1 }
+        };
+
+        var client = _httpClientFactory.CreateClient();
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={apiKey}";
+        var response     = await client.PostAsync(url, new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await LogErrorAsync($"Gemini drive-invoice API retornó {(int)response.StatusCode}", responseBody,
+                transactionData: $"DriveUrl={request.DriveFileUrl}");
             return StatusCode((int)response.StatusCode, new { message = "Error de Gemini", detail = responseBody });
         }
 

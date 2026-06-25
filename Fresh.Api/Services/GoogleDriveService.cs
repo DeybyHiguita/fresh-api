@@ -156,6 +156,37 @@ public class GoogleDriveService
         return created.Id;
     }
 
+    /// <summary>Downloads a file from Google Drive by URL or file ID and returns it as (base64, mimeType).</summary>
+    public async Task<(string Base64, string MimeType)> DownloadFileAsBase64Async(string driveUrl)
+    {
+        var driveService = BuildDriveService();
+
+        var fileId = ExtractFileId(driveUrl);
+        if (string.IsNullOrEmpty(fileId))
+            throw new InvalidOperationException($"No se pudo extraer el ID del archivo de: {driveUrl}");
+
+        // Get metadata (mimeType)
+        var metaRequest = driveService.Files.Get(fileId);
+        metaRequest.Fields = "mimeType,name";
+        var meta = await metaRequest.ExecuteAsync();
+        var mimeType = meta.MimeType ?? "image/jpeg";
+
+        // Download content
+        using var stream = new MemoryStream();
+        var dlRequest = driveService.Files.Get(fileId);
+        await dlRequest.DownloadAsync(stream);
+
+        return (Convert.ToBase64String(stream.ToArray()), mimeType);
+    }
+
+    private static string ExtractFileId(string url)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(url, @"/file/d/([^/?]+)");
+        if (m.Success) return m.Groups[1].Value;
+        m = System.Text.RegularExpressions.Regex.Match(url, @"[?&]id=([^&]+)");
+        return m.Success ? m.Groups[1].Value : string.Empty;
+    }
+
     /// <summary>Uploads a base64-encoded image to Google Drive and returns the shareable file URL.</summary>
     public async Task<string> UploadInvoiceAsync(string base64Image, string mimeType, string fileName, string? subFolderId = null)
     {
