@@ -31,6 +31,10 @@ public class OrderHub : Hub
                 ?? Context.User?.FindFirst("role")?.Value
                 ?? string.Empty;
 
+        var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                       ?? Context.User?.FindFirst("sub")?.Value;
+        var hasUserId = int.TryParse(userIdClaim, out var userId);
+
         if (role.Equals("admin", StringComparison.OrdinalIgnoreCase))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, "admins");
@@ -43,19 +47,17 @@ public class OrderHub : Hub
         else
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, "users");
+        }
 
-            // Si el usuario tiene una caja abierta, recibe también las alertas de transferencia
-            var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                           ?? Context.User?.FindFirst("sub")?.Value;
+        // Cualquier usuario (admin o cajero) con caja abierta entra a "cash-open".
+        // El frontend deduplica por transfer.id si un admin recibe desde ambos grupos.
+        if (hasUserId && userId > 0)
+        {
+            var hasOpenCash = await _db.CashRegisters
+                .AnyAsync(r => r.OpenedById == userId && r.ClosingTime == null);
 
-            if (int.TryParse(userIdClaim, out var userId))
-            {
-                var hasOpenCash = await _db.CashRegisters
-                    .AnyAsync(r => r.OpenedById == userId && r.ClosingTime == null);
-
-                if (hasOpenCash)
-                    await Groups.AddToGroupAsync(Context.ConnectionId, "cash-open");
-            }
+            if (hasOpenCash)
+                await Groups.AddToGroupAsync(Context.ConnectionId, "cash-open");
         }
 
         await base.OnConnectedAsync();

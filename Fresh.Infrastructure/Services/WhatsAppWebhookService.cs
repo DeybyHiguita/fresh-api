@@ -214,24 +214,23 @@ public class WhatsAppWebhookService
                                         var transferNotifier = transferScope.ServiceProvider.GetRequiredService<ITransferHubNotifier>();
                                         
                                         var matchingOrders = await orderService.FindPendingTransferOrdersAsync(transfer.Value.amount);
-                                        
-                                        if (matchingOrders.Count > 0)
-                                        {
-                                            var notification = new TransferNotificationDto(
-                                                Id: Guid.NewGuid().ToString(),
-                                                Source: transfer.Value.source,
-                                                Amount: transfer.Value.amount,
-                                                SenderName: transfer.Value.senderName,
-                                                RawMessage: body,
-                                                ContactPhone: from,
-                                                ReceivedAt: DateTimeOffset.UtcNow,
-                                                MatchingOrders: matchingOrders
-                                            );
-                                            
-                                            await transferNotifier.NotifyTransferReceivedAsync(notification);
-                                            _logger.LogInformation("[WhatsApp] Transferencia detectada: {Source} ${Amount} de {Sender}", 
-                                                transfer.Value.source, transfer.Value.amount, transfer.Value.senderName);
-                                        }
+
+                                        // Notificar siempre que se detecte una transferencia,
+                                        // con o sin órdenes coincidentes, para que el cajero pueda actuar.
+                                        var notification = new TransferNotificationDto(
+                                            Id: Guid.NewGuid().ToString(),
+                                            Source: transfer.Value.source,
+                                            Amount: transfer.Value.amount,
+                                            SenderName: transfer.Value.senderName,
+                                            RawMessage: body,
+                                            ContactPhone: from,
+                                            ReceivedAt: DateTimeOffset.UtcNow,
+                                            MatchingOrders: matchingOrders
+                                        );
+
+                                        await transferNotifier.NotifyTransferReceivedAsync(notification);
+                                        _logger.LogInformation("[WhatsApp] Transferencia detectada: {Source} ${Amount} de {Sender}",
+                                            transfer.Value.source, transfer.Value.amount, transfer.Value.senderName);
                                     }
                                 });
 

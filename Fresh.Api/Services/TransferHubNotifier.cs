@@ -16,8 +16,10 @@ public class TransferHubNotifier : ITransferHubNotifier
 
     public async Task NotifyTransferReceivedAsync(TransferNotificationDto notification)
     {
-        // Enviar a admins Y a usuarios con caja abierta
-        await _hub.Clients.Group("admins").SendAsync("TransferReceived", notification);
+        // Prioridad: cajeros con caja abierta (incluye admins que abrieron caja).
+        // Los admins la reciben también como respaldo.
+        // Si un admin tiene caja abierta está en ambos grupos; el frontend deduplica por transfer.id.
         await _hub.Clients.Group("cash-open").SendAsync("TransferReceived", notification);
+        await _hub.Clients.Group("admins").SendAsync("TransferReceived", notification);
     }
 }
