@@ -18,6 +18,7 @@ public class Order
     public string? DeliveryPlatform { get; set; }
     public decimal? PlatformPayment { get; set; }
     public bool IsCreditPaid { get; set; } = false;
+    public decimal? AmountPaid { get; set; } = null;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 

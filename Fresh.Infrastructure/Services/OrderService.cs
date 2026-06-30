@@ -137,7 +137,8 @@ public class OrderService : IOrderService
 
         if (request.PaymentMethod == "Crédito" && order.CustomerId.HasValue)
         {
-            await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, order.Total, order.Id);
+            var creditAmount = order.PlatformPayment ?? order.Total;
+            await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, creditAmount, order.Id);
         }
 
         await transaction.CommitAsync();
@@ -180,7 +181,8 @@ public class OrderService : IOrderService
 
             if (!alreadyCharged)
             {
-                await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, order.Total, order.Id);
+                var creditAmount = order.PlatformPayment ?? order.Total;
+                await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, creditAmount, order.Id);
             }
         }
 
@@ -250,7 +252,8 @@ public class OrderService : IOrderService
 
             if (!alreadyCharged)
             {
-                await _customerCreditService.RegisterPurchaseAsync(customer.Id, order.Total, order.Id);
+                var creditAmount = order.PlatformPayment ?? order.Total;
+                await _customerCreditService.RegisterPurchaseAsync(customer.Id, creditAmount, order.Id);
             }
         }
 
@@ -367,7 +370,8 @@ public class OrderService : IOrderService
             }
             else if (order.Status == "Entregado")
             {
-                await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, newTotal, order.Id);
+                var creditAmount = order.PlatformPayment ?? newTotal;
+                await _customerCreditService.RegisterPurchaseAsync(order.CustomerId.Value, creditAmount, order.Id);
             }
         }
 

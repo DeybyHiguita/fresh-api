@@ -17,8 +17,10 @@ public class CreditOrderResponse
     public decimal Subtotal { get; set; }
     public decimal Discount { get; set; }
     public decimal Total { get; set; }
+    public decimal? PlatformPayment { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool IsCreditPaid { get; set; }
+    public decimal? AmountPaid { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public string? Notes { get; set; }
     public List<CreditOrderItemResponse> Items { get; set; } = [];

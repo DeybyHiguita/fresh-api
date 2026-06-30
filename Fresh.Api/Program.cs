@@ -226,6 +226,7 @@ using (var scope = app.Services.CreateScope())
 
             ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_platform VARCHAR(50);
             ALTER TABLE orders ADD COLUMN IF NOT EXISTS platform_payment NUMERIC(18,2);
+            ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(18,2);
         ");
     }
     catch (Exception ex)

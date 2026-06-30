@@ -130,8 +130,10 @@ public class CustomerCreditService : ICustomerCreditService
             Subtotal = o.Subtotal,
             Discount = o.Discount,
             Total    = o.Total,
+            PlatformPayment = o.PlatformPayment,
             Status   = o.Status,
             IsCreditPaid = o.IsCreditPaid,
+            AmountPaid = o.AmountPaid,
             CreatedAt = o.CreatedAt,
             Notes    = o.Notes,
             Items    = o.OrderItems.Select(i => new CreditOrderItemResponse
@@ -151,11 +153,12 @@ public class CustomerCreditService : ICustomerCreditService
         var credit = await _context.CustomerCredits.FindAsync(creditId)
             ?? throw new KeyNotFoundException("Cuenta de crédito no encontrada.");
 
-        if (request.OrderIds.Count == 0)
+        if (request.Orders.Count == 0)
             throw new InvalidOperationException("Selecciona al menos una orden para pagar.");
 
+        var orderIds = request.Orders.Select(r => r.OrderId).ToList();
         var orders = await _context.Orders
-            .Where(o => request.OrderIds.Contains(o.Id)
+            .Where(o => orderIds.Contains(o.Id)
                      && o.CustomerId == credit.CustomerId
                      && o.PaymentMethod == "Crédito"
                      && !o.IsCreditPaid)
@@ -164,7 +167,15 @@ public class CustomerCreditService : ICustomerCreditService
         if (orders.Count == 0)
             throw new InvalidOperationException("No se encontraron órdenes válidas para pagar.");
 
-        decimal totalToPay = orders.Sum(o => o.Total);
+        decimal totalToPay = 0;
+        foreach (var order in orders)
+        {
+            var payItem = request.Orders.FirstOrDefault(r => r.OrderId == order.Id);
+            var amountPaid = (payItem is not null && payItem.AmountPaid > 0) ? payItem.AmountPaid : order.Total;
+            order.AmountPaid = amountPaid;
+            order.IsCreditPaid = true;
+            totalToPay += amountPaid;
+        }
 
         if (totalToPay > credit.CurrentBalance)
             throw new InvalidOperationException($"El monto a pagar (${totalToPay}) supera el saldo adeudado (${credit.CurrentBalance}).");
@@ -174,11 +185,8 @@ public class CustomerCreditService : ICustomerCreditService
         credit.Status = credit.CurrentBalance <= 0 ? "Al día" : "Con deuda";
         credit.UpdatedAt = DateTimeOffset.UtcNow;
 
-        foreach (var order in orders)
-            order.IsCreditPaid = true;
-
-        var orderIds = string.Join(", #", orders.Select(o => o.Id));
-        var description = $"Pago de órdenes #{orderIds}";
+        var orderIdsStr = string.Join(", #", orders.Select(o => o.Id));
+        var description = $"Pago de órdenes #{orderIdsStr}";
         if (!string.IsNullOrWhiteSpace(request.PaymentMethod)) description += $" ({request.PaymentMethod})";
         if (!string.IsNullOrWhiteSpace(request.Notes)) description += $": {request.Notes}";
 
