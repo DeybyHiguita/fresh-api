@@ -121,6 +121,18 @@ public class InvestmentsController : ControllerBase
         }
     }
 
+    [HttpPost("{id}/import-need-items")]
+    public async Task<IActionResult> ImportNeedItems(int id)
+    {
+        try
+        {
+            var investment = await _investmentService.ImportNeedItemsAsync(id);
+            return Ok(investment);
+        }
+        catch (KeyNotFoundException ex)   { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpDelete("items/{itemId}")]
     public async Task<IActionResult> RemoveItem(int itemId)
     {

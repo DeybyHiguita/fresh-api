@@ -15,4 +15,9 @@ public interface IInvestmentService
     Task<InvestmentItemResponse> AddItemAsync(InvestmentItemRequest request);
     Task<bool> RemoveItemAsync(int itemId);
     Task<InvestmentItemResponse?> UpdateItemAsync(int itemId, InvestmentItemRequest request);
+
+    /// <summary>
+    /// Copia los ítems de la solicitud de inversión asociada como ítems de justificación.
+    /// </summary>
+    Task<InvestmentResponse> ImportNeedItemsAsync(int investmentId);
 }

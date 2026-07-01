@@ -152,6 +152,52 @@ public class InvestmentService : IInvestmentService
         return MapItemToResponse(await LoadItemWithRelations(item.Id));
     }
 
+    public async Task<InvestmentResponse> ImportNeedItemsAsync(int investmentId)
+    {
+        var investment = await _context.Investments.FindAsync(investmentId)
+            ?? throw new KeyNotFoundException($"La inversión {investmentId} no existe.");
+
+        // Buscar la solicitud vinculada a través de la asignación
+        var assignment = await _context.InvestmentNeedAssignments
+            .Include(a => a.Need).ThenInclude(n => n!.Items).ThenInclude(i => i.Equipment)
+            .Include(a => a.Need).ThenInclude(n => n!.Items).ThenInclude(i => i.PurchaseBatch)
+            .Include(a => a.Need).ThenInclude(n => n!.Items).ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(a => a.InvestmentId == investmentId);
+
+        var need = assignment?.Need;
+        if (need is null)
+            throw new InvalidOperationException("No se encontró una solicitud de inversión vinculada.");
+
+        var needItems = need.Items;
+        if (needItems.Count == 0)
+            throw new InvalidOperationException("La solicitud no tiene ítems para importar.");
+
+        foreach (var ni in needItems)
+        {
+            var itemType = ni.ItemType ?? "other";
+            var amount   = ni.EstimatedCost ?? (ni.Quantity.GetValueOrDefault(1) * ni.UnitPrice.GetValueOrDefault(0));
+
+            _context.InvestmentItems.Add(new InvestmentItem
+            {
+                InvestmentId    = investmentId,
+                ItemType        = itemType,
+                EquipmentId     = ni.EquipmentId,
+                PurchaseBatchId = ni.PurchaseBatchId,
+                ProductId       = ni.ProductId,
+                Description     = ni.Description,
+                Amount          = amount,
+                Quantity        = ni.Quantity,
+                UnitPrice       = ni.UnitPrice,
+                CreatedAt       = DateTimeOffset.UtcNow,
+            });
+        }
+
+        investment.UpdatedAt = DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return await GetByIdAsync(investmentId) ?? throw new Exception("Error al recuperar la inversión.");
+    }
+
     public async Task<bool> RemoveItemAsync(int itemId)
     {
         var item = await _context.InvestmentItems
